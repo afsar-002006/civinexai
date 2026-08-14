@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Backend & Zip archives
+civicnex-backend-main.zip
+backend/**/node_modules
+backend/**/lib
+scratch/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -29,3 +35,4 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+

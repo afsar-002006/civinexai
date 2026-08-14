@@ -1,50 +1,57 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
+import { fetchReports, updateReportStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, AlertCircle, Clock, Activity, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Clock, Activity, CheckCircle2, ArrowRight, RefreshCw, Filter } from 'lucide-react';
 
 export default function AuthorityDashboard() {
   const { userProfile } = useAuth();
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await fetchReports();
+    setReports(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleStatusUpdate = async (id, nextStatus) => {
+    setUpdatingId(id);
+    await updateReportStatus(id, nextStatus);
+    await loadData();
+    setUpdatingId(null);
+  };
+
+  const total = reports.length;
+  const criticalCount = reports.filter(r => r.severity === 'Critical' || r.priorityScore >= 80).length;
+  const pendingCount = reports.filter(r => r.status === 'Pending' || r.status === 'Under Review').length;
+  const resolvedCount = reports.filter(r => r.status === 'Resolved').length;
 
   const stats = [
-    { title: 'Total Issues', value: '18', icon: Activity, color: 'cyan', subtitle: 'Municipal jurisdiction' },
-    { title: 'Critical Priority', value: '4', icon: AlertCircle, color: 'red', subtitle: 'Requires urgent action' },
-    { title: 'Under Review', value: '7', icon: Clock, color: 'amber', subtitle: 'New submissions' },
-    { title: 'In Progress / Fixed', value: '7', icon: CheckCircle2, color: 'emerald', subtitle: 'Dispatched teams' },
+    { title: 'Total Issues', value: String(total), icon: Activity, color: 'cyan', subtitle: 'Municipal jurisdiction' },
+    { title: 'High AI Priority', value: String(criticalCount), icon: AlertCircle, color: 'red', subtitle: 'Requires urgent dispatch' },
+    { title: 'Pending Review', value: String(pendingCount), icon: Clock, color: 'amber', subtitle: 'New submissions' },
+    { title: 'Resolved Issues', value: String(resolvedCount), icon: CheckCircle2, color: 'emerald', subtitle: 'Completed works' },
   ];
 
-  const highPriorityReports = [
-    {
-      id: 'rep-101',
-      title: 'Major Water Pipe Burst',
-      category: 'Water Leakage',
-      location: 'Sector 4, Market Complex',
-      severity: 'Critical',
-      priorityScore: 94,
-      status: 'Under Review',
-      createdAt: '30 mins ago'
-    },
-    {
-      id: 'rep-102',
-      title: 'Bridge Approach Road Cave-in',
-      category: 'Flooding',
-      location: 'South River Bridge',
-      severity: 'Critical',
-      priorityScore: 91,
-      status: 'In Progress',
-      createdAt: '1 hour ago'
-    }
-  ];
+  // Sort reports by priority score descending
+  const sortedReports = [...reports].sort((a, b) => b.priorityScore - a.priorityScore);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Welcome Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl glass-panel border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl glass-panel border border-purple-500/30">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="w-5 h-5 text-purple-400" />
@@ -54,17 +61,26 @@ export default function AuthorityDashboard() {
               Authority Portal — <span className="text-purple-400">{userProfile?.name || 'Officer'}</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Review AI severity scores, assign dispatch tasks, and update civic resolution statuses.
+              Review AI priority scores, dispatch field teams, and update civic resolution statuses in real time.
             </p>
           </div>
 
-          <Link
-            to="/analytics"
-            className="px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all shrink-0"
-          >
-            <span>View Intelligence Analytics</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              className="p-2.5 rounded-xl glass-panel border border-slate-700 text-slate-300 hover:text-white transition-colors"
+              title="Refresh Queue"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <Link
+              to="/analytics"
+              className="px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 shrink-0"
+            >
+              <span>View Analytics</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
 
         {/* Stat Cards */}
@@ -78,37 +94,69 @@ export default function AuthorityDashboard() {
         <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">Critical Priority Queue</h2>
-              <p className="text-xs text-slate-400">Issues sorted by Mock AI priority score</p>
+              <h2 className="text-lg font-bold text-white">Priority Issue Dispatch Queue</h2>
+              <p className="text-xs text-slate-400">Issues sorted by AI Priority Score (0–100)</p>
             </div>
           </div>
 
-          <div className="divide-y divide-slate-800/80">
-            {highPriorityReports.map((report) => (
-              <div key={report.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-900/30 px-2 rounded-lg transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-slate-100">{report.title}</span>
-                    <PriorityBadge score={report.priorityScore} severity={report.severity} />
+          {loading ? (
+            <div className="py-8 text-center text-xs text-slate-400">Loading priority queue...</div>
+          ) : sortedReports.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">No issues currently logged.</div>
+          ) : (
+            <div className="divide-y divide-slate-800/80">
+              {sortedReports.map((report) => (
+                <div key={report.id} className="py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-900/30 px-3 rounded-xl transition-colors">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs text-cyan-400 font-bold">{report.id}</span>
+                      <span className="font-bold text-sm text-white">{report.title}</span>
+                      <PriorityBadge score={report.priorityScore} severity={report.severity} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                      <span className="text-purple-400 font-medium">{report.category}</span>
+                      <span>•</span>
+                      <span>{report.location}</span>
+                      <span>•</span>
+                      <span>Reported by {report.reportedBy}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-400">
-                    <span>{report.category}</span>
-                    <span>•</span>
-                    <span>{report.location}</span>
-                    <span>•</span>
-                    <span>{report.createdAt}</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={report.status} />
-                  <button className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors">
-                    Update Status
-                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <StatusBadge status={report.status} />
+
+                    {/* Officer Status Action Dropdown/Buttons */}
+                    <div className="flex items-center gap-1.5">
+                      {report.status !== 'In Progress' && report.status !== 'Resolved' && (
+                        <button
+                          onClick={() => handleStatusUpdate(report.id, 'In Progress')}
+                          disabled={updatingId === report.id}
+                          className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors shadow-md disabled:opacity-50"
+                        >
+                          Dispatch Team
+                        </button>
+                      )}
+                      {report.status !== 'Resolved' && (
+                        <button
+                          onClick={() => handleStatusUpdate(report.id, 'Resolved')}
+                          disabled={updatingId === report.id}
+                          className="px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:text-white bg-emerald-950/80 hover:bg-emerald-800 border border-emerald-500/30 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          Mark Resolved
+                        </button>
+                      )}
+                      <Link
+                        to={`/report/${report.id}`}
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-700 rounded-lg transition-colors"
+                      >
+                        Details
+                      </Link>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

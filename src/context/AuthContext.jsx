@@ -123,39 +123,70 @@ export function AuthProvider({ children }) {
 
   // Listen to auth state changes
   useEffect(() => {
+    let isMounted = true;
+
+    // Safety fallback timeout: prevent blank page if Firebase Auth hangs or delays on demo keys
+    const timeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 800);
+
     // Check local storage for demo mode persistence
     const savedUser = localStorage.getItem('civinex_demo_user');
     const savedProfile = localStorage.getItem('civinex_demo_profile');
     
     if (savedUser && savedProfile) {
-      setCurrentUser(JSON.parse(savedUser));
-      setUserProfile(JSON.parse(savedProfile));
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+        setUserProfile(JSON.parse(savedProfile));
+      } catch (e) {
+        console.warn("Failed to parse demo user session", e);
+      }
       setLoading(false);
+      clearTimeout(timeout);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        try {
-          const userRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            setUserProfile(userSnap.data());
-          } else {
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (!isMounted) return;
+        setCurrentUser(user);
+        if (user) {
+          try {
+            const userRef = doc(db, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              setUserProfile(userSnap.data());
+            } else {
+              setUserProfile({ name: user.displayName || user.email.split('@')[0], email: user.email, role: 'Citizen' });
+            }
+          } catch (err) {
+            console.warn("Error fetching user profile on auth state change:", err);
             setUserProfile({ name: user.displayName || user.email.split('@')[0], email: user.email, role: 'Citizen' });
           }
-        } catch (err) {
-          console.warn("Error fetching user profile on auth state change:", err);
-          setUserProfile({ name: user.displayName || user.email.split('@')[0], email: user.email, role: 'Citizen' });
+        } else {
+          setUserProfile(null);
         }
-      } else {
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
+        setLoading(false);
+        clearTimeout(timeout);
+      }, (err) => {
+        console.warn("onAuthStateChanged error:", err);
+        if (isMounted) setLoading(false);
+        clearTimeout(timeout);
+      });
+    } catch (err) {
+      console.warn("Firebase Auth listener initialization error:", err);
+      if (isMounted) setLoading(false);
+      clearTimeout(timeout);
+    }
 
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const value = {
@@ -170,7 +201,8 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }
+
