@@ -145,6 +145,6 @@ app.get('/api/analytics/stats', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 CiviNex Backend Server running on http://localhost:${PORT}`);
 });
