@@ -1,0 +1,15 @@
+{
+  "name": "civicnex-backend",
+  "version": "1.0.0",
+  "description": "Backend workspace for CiviNex",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "cd functions && npm run build",
+    "install:functions": "cd functions && npm install"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}
