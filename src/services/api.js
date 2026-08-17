@@ -1,6 +1,7 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+import { collection, addDoc, getDocs, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
-// Initial local storage key for client persistence
+const API_BASE_URL = 'http://localhost:5000/api';
 const LOCAL_REPORTS_KEY = 'civinex_local_reports';
 
 const defaultSeedReports = [
@@ -11,6 +12,7 @@ const defaultSeedReports = [
     severity: 'High',
     priorityScore: 88,
     status: 'Pending',
+    address: '123 Main St, Central Ward',
     location: '123 Main St, Central Ward',
     latitude: 13.0827,
     longitude: 80.2707,
@@ -26,6 +28,7 @@ const defaultSeedReports = [
     severity: 'Medium',
     priorityScore: 65,
     status: 'In Progress',
+    address: 'Park Avenue & 4th St',
     location: 'Park Avenue & 4th St',
     latitude: 13.0878,
     longitude: 80.2785,
@@ -41,6 +44,7 @@ const defaultSeedReports = [
     severity: 'Medium',
     priorityScore: 54,
     status: 'Resolved',
+    address: 'School Zone Ward 8',
     location: 'School Zone Ward 8',
     latitude: 13.0750,
     longitude: 80.2600,
@@ -56,6 +60,7 @@ const defaultSeedReports = [
     severity: 'Critical',
     priorityScore: 95,
     status: 'Pending',
+    address: 'Sector 4, Market Complex',
     location: 'Sector 4, Market Complex',
     latitude: 13.0900,
     longitude: 80.2850,
@@ -83,21 +88,55 @@ function saveLocalReports(reports) {
   localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(reports));
 }
 
-// Fetch all reports from backend with local fallback
+// Fetch all reports (Firestore first, with backend/local fallback)
 export async function fetchReports() {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'issues'));
+    const firestoreReports = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (firestoreReports && firestoreReports.length > 0) {
+      return firestoreReports;
+    }
+  } catch (err) {
+    console.warn('Firestore offline or empty, trying backend API / local fallback:', err);
+  }
+
   try {
     const res = await fetch(`${API_BASE_URL}/reports`);
     if (res.ok) {
       const data = await res.json();
-      if (data.reports) {
+      if (data.reports && data.reports.length > 0) {
         saveLocalReports(data.reports);
         return data.reports;
       }
     }
   } catch (err) {
-    console.warn('Backend offline, using local storage fallback for reports:', err);
+    console.warn('Backend API offline, using local storage fallback for reports:', err);
   }
   return getStoredLocalReports();
+}
+
+// Subscribe to real-time reports updates (Firestore with local fallback)
+export function subscribeToReports(callback) {
+  try {
+    const q = collection(db, 'issues');
+    return onSnapshot(q, (snapshot) => {
+      const reports = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      if (reports && reports.length > 0) {
+        callback(reports);
+      } else {
+        fetchReports().then(callback);
+      }
+    }, (err) => {
+      console.warn('Real-time snapshot error, falling back to fetchReports:', err);
+      fetchReports().then(callback);
+    });
+  } catch (err) {
+    fetchReports().then(callback);
+    return () => {};
+  }
 }
 
 // Fetch single report by ID
@@ -108,51 +147,69 @@ export async function fetchReportById(id) {
 
 // Submit a new civic problem report
 export async function createReport(reportData) {
-  try {
-    const res = await fetch(`${API_BASE_URL}/reports`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reportData)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.report) return data.report;
-    }
-  } catch (err) {
-    console.warn('Backend offline, creating report in local storage:', err);
-  }
-
-  // Calculate local mock priority score
   let baseScore = 50;
   if (reportData.severity === 'Critical') baseScore += 35;
   else if (reportData.severity === 'High') baseScore += 25;
   else if (reportData.severity === 'Medium') baseScore += 10;
   if (reportData.category === 'Road Damage' || reportData.category === 'Water Leakage') baseScore += 10;
 
+  const priorityScore = reportData.priorityScore || Math.min(100, Math.max(15, baseScore));
+
   const newReport = {
-    id: `rep-${Date.now()}`,
     title: reportData.title || 'Untitled Civic Issue',
     category: reportData.category || 'General',
     severity: reportData.severity || 'Medium',
-    priorityScore: Math.min(100, Math.max(15, baseScore)),
+    priorityScore: priorityScore,
     status: 'Pending',
-    location: reportData.location || 'Central City Ward',
+    address: reportData.location || reportData.address || 'Central City Ward',
+    location: reportData.location || reportData.address || 'Central City Ward',
     latitude: reportData.latitude || (13.08 + Math.random() * 0.02),
     longitude: reportData.longitude || (80.27 + Math.random() * 0.02),
     description: reportData.description || '',
     createdAt: new Date().toISOString(),
     reportedBy: reportData.reportedBy || 'Citizen',
+    image: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80',
     imageUrl: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80'
   };
 
+  try {
+    const docRef = await addDoc(collection(db, 'issues'), newReport);
+    return { id: docRef.id, ...newReport };
+  } catch (err) {
+    console.warn('Firestore write offline, using API / local storage fallback:', err);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/reports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReport)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.report) return data.report;
+    }
+  } catch (err) {
+    console.warn('Backend API offline, saving report to local storage:', err);
+  }
+
+  const localReport = { id: `rep-${Date.now()}`, ...newReport };
   const reports = getStoredLocalReports();
-  reports.unshift(newReport);
+  reports.unshift(localReport);
   saveLocalReports(reports);
-  return newReport;
+  return localReport;
 }
 
-// Update report resolution status (Pending -> In Progress -> Resolved)
+// Update report resolution status
 export async function updateReportStatus(id, status) {
+  try {
+    const reportRef = doc(db, 'issues', id);
+    await updateDoc(reportRef, { status });
+    return { id, status };
+  } catch (err) {
+    console.warn('Firestore status update offline, trying backend API:', err);
+  }
+
   try {
     const res = await fetch(`${API_BASE_URL}/reports/${id}`, {
       method: 'PATCH',
@@ -164,7 +221,7 @@ export async function updateReportStatus(id, status) {
       if (data.report) return data.report;
     }
   } catch (err) {
-    console.warn('Backend offline, updating report status in local storage:', err);
+    console.warn('Backend API status update offline, updating local storage:', err);
   }
 
   const reports = getStoredLocalReports();
@@ -173,7 +230,7 @@ export async function updateReportStatus(id, status) {
     report.status = status;
     saveLocalReports(reports);
   }
-  return report;
+  return { id, status };
 }
 
 // Analyze AI Priority
@@ -188,7 +245,7 @@ export async function analyzePriority(category, severity, description) {
       return await res.json();
     }
   } catch (err) {
-    console.warn('Backend AI service offline, calculating locally:', err);
+    // Local calculation fallback
   }
 
   let baseScore = 50;

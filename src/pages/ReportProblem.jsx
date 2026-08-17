@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { createReport, analyzePriority } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, AlertTriangle, MapPin, Camera, Sparkles, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { PlusCircle, AlertTriangle, MapPin, Camera, Sparkles, CheckCircle2, Loader2, ArrowRight, LocateFixed } from 'lucide-react';
 
-const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Electricity', 'Flooding', 'Traffic & Signs'];
+const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Streetlight', 'Electricity', 'Flooding', 'Traffic', 'Other'];
 const SEVERITIES = [
   { id: 'Low', label: 'Low', color: 'border-slate-700 hover:border-cyan-500 text-slate-300' },
   { id: 'Medium', label: 'Medium', color: 'border-amber-500/40 text-amber-400' },
@@ -21,6 +21,8 @@ export default function ReportProblem() {
   const [category, setCategory] = useState('Road Damage');
   const [severity, setSeverity] = useState('High');
   const [location, setLocation] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,9 +61,12 @@ export default function ReportProblem() {
         category,
         severity,
         location,
+        latitude,
+        longitude,
         description,
         imageUrl: imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80',
-        reportedBy: userProfile?.name || currentUser?.email || 'Citizen'
+        reportedBy: userProfile?.name || currentUser?.email || 'Citizen',
+        priorityScore: aiScore
       });
       setSubmittedReportId(report.id);
     } catch (err) {
@@ -152,7 +157,24 @@ export default function ReportProblem() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Location Landmark / Address *</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                    <span>Location Landmark / Address *</span>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition((pos) => {
+                            setLatitude(pos.coords.latitude);
+                            setLongitude(pos.coords.longitude);
+                            setLocation(`GPS: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+                          });
+                        }
+                      }}
+                      className="text-cyan-400 flex items-center gap-1 hover:text-cyan-300 transition-colors"
+                    >
+                      <LocateFixed className="w-3 h-3" /> Get GPS
+                    </button>
+                  </label>
                   <div className="relative">
                     <input
                       type="text"
