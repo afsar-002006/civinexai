@@ -1,51 +1,49 @@
-import { collection, addDoc, getDocs, doc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, updateDoc, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { analyzePhotoWithAI } from './imageAnalysis';
 
-// Fetch all reports from Firestore
+// ─── Fetch all reports from Firestore ─────────────────────────────────────────
 export async function fetchReports() {
   try {
     const querySnapshot = await getDocs(collection(db, 'issues'));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (err) {
     console.error('Error fetching reports from Firestore:', err);
     return [];
   }
 }
 
-// Fetch single report by ID
+// ─── Fetch single report by ID ────────────────────────────────────────────────
 export async function fetchReportById(id) {
   const reports = await fetchReports();
   return reports.find(r => r.id === id) || null;
 }
 
-// Subscribe to real-time reports updates
+// ─── Subscribe to real-time reports ──────────────────────────────────────────
 export function subscribeToReports(callback) {
   const q = collection(db, 'issues');
   return onSnapshot(q, (snapshot) => {
-    const reports = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const reports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     callback(reports);
   });
 }
 
-// Submit a new civic problem report
+// ─── Submit a new civic problem report ───────────────────────────────────────
 export async function createReport(reportData) {
-  // Calculate local mock priority score if not provided
+  // Priority score: prefer explicitly passed value, fall back to calculation
   let baseScore = 50;
   if (reportData.severity === 'Critical') baseScore += 35;
   else if (reportData.severity === 'High') baseScore += 25;
   else if (reportData.severity === 'Medium') baseScore += 10;
   if (reportData.category === 'Road Damage' || reportData.category === 'Water Leakage') baseScore += 10;
 
-  const priorityScore = reportData.priorityScore || Math.min(100, Math.max(15, baseScore));
+  const priorityScore = reportData.priorityScore ?? Math.min(100, Math.max(15, baseScore));
 
   const newReport = {
     title: reportData.title || 'Untitled Civic Issue',
     category: reportData.category || 'General',
     severity: reportData.severity || 'Medium',
-    priorityScore: priorityScore,
+    priorityScore,
     status: 'Pending',
     address: reportData.location || reportData.address || 'Central City Ward',
     location: reportData.location || reportData.address || 'Central City Ward',
@@ -54,8 +52,22 @@ export async function createReport(reportData) {
     description: reportData.description || '',
     createdAt: new Date().toISOString(),
     reportedBy: reportData.reportedBy || 'Citizen',
-    image: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80',
-    imageUrl: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80'
+    image: reportData.imageUrl || '',
+    imageUrl: reportData.imageUrl || '',
+
+    // ── AI Photo Analysis Fields ──
+    imageAuthenticity: reportData.imageAuthenticity ?? null,
+    authenticityConfidence: reportData.authenticityConfidence ?? null,
+    detectedCategory: reportData.detectedCategory ?? null,
+    aiSeverity: reportData.aiSeverity ?? null,
+    aiReason: reportData.aiReason ?? null,
+    needsReview: reportData.needsReview ?? false,
+
+    // ── Duplicate Detection Fields ──
+    imageHash: reportData.imageHash ?? null,
+    duplicateDetected: reportData.duplicateDetected ?? false,
+    relatedIssueId: reportData.relatedIssueId ?? null,
+    relatedReportCount: reportData.relatedReportCount ?? 0,
   };
 
   try {
@@ -67,7 +79,7 @@ export async function createReport(reportData) {
   }
 }
 
-// Update report resolution status
+// ─── Update report status ─────────────────────────────────────────────────────
 export async function updateReportStatus(id, status) {
   try {
     const reportRef = doc(db, 'issues', id);
@@ -79,7 +91,27 @@ export async function updateReportStatus(id, status) {
   }
 }
 
-// Analyze AI Priority
+// ─── Update related report count (when a new duplicate is added) ──────────────
+export async function updateRelatedReportCount(id, count) {
+  try {
+    const reportRef = doc(db, 'issues', id);
+    await updateDoc(reportRef, { relatedReportCount: count });
+  } catch (err) {
+    console.error('Error updating relatedReportCount:', err);
+  }
+}
+
+// ─── Update priority score ────────────────────────────────────────────────────
+export async function updatePriorityScore(id, priorityScore) {
+  try {
+    const reportRef = doc(db, 'issues', id);
+    await updateDoc(reportRef, { priorityScore });
+  } catch (err) {
+    console.error('Error updating priorityScore:', err);
+  }
+}
+
+// ─── Live AI priority analysis (fallback, no image) ──────────────────────────
 export async function analyzePriority(category, severity, description) {
   let baseScore = 50;
   if (severity === 'Critical') baseScore += 35;
@@ -95,7 +127,17 @@ export async function analyzePriority(category, severity, description) {
   };
 }
 
-// Fetch analytics statistics
+// ─── AI Photo Analysis (wrapper kept for backwards compatibility) ─────────────
+export async function analyzePhoto(imageUrl) {
+  const result = await analyzePhotoWithAI(imageUrl);
+  // Map field name for legacy callers (imageAuthenticityConfidence)
+  return {
+    ...result,
+    imageAuthenticityConfidence: result.authenticityConfidence,
+  };
+}
+
+// ─── Analytics stats ──────────────────────────────────────────────────────────
 export async function fetchAnalyticsStats() {
   const reports = await fetchReports();
   const total = reports.length;

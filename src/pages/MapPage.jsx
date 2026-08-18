@@ -4,11 +4,11 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import PriorityBadge from '../components/PriorityBadge';
 import StatusBadge from '../components/StatusBadge';
 import { subscribeToReports } from '../services/api';
-import { MapPin, Filter, Layers, Navigation, ArrowRight, ShieldAlert, Activity } from 'lucide-react';
+import { clusterReports } from '../services/duplicateDetection';
+import { MapPin, Filter, Layers, Navigation, ArrowRight, ShieldAlert, Activity, Users } from 'lucide-react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for leaflet map size
 const mapStyle = { height: '100%', width: '100%', minHeight: '500px', borderRadius: '1rem', zIndex: 0 };
 
 export default function MapPage() {
@@ -18,12 +18,12 @@ export default function MapPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [heatmapMode, setHeatmapMode] = useState(false);
+  const [clusterMode, setClusterMode] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     const unsubscribe = subscribeToReports((data) => {
       setReports(data || []);
-      // If we don't have a selected report, or if the selected report was updated, keep it in sync
       if (data && data.length > 0) {
         setSelectedReport(prev => {
           if (!prev) return data[0];
@@ -36,20 +36,31 @@ export default function MapPage() {
     return () => unsubscribe();
   }, []);
 
-  const filteredReports = reports.filter(r => {
+  const filteredReports = [...reports].filter(r => {
     const matchCategory = filterCategory === 'All' || r.category === filterCategory;
     const matchStatus = filterStatus === 'All' || r.status === filterStatus;
     return matchCategory && matchStatus;
-  });
+  }).sort((a, b) => (a.priorityScore || 0) - (b.priorityScore || 0));
 
-  const getMarkerColor = (severity) => {
-    switch(severity) {
-      case 'Critical': return '#ef4444'; // red
-      case 'High': return '#f97316'; // orange
-      case 'Medium': return '#eab308'; // yellow
-      case 'Low': return '#22c55e'; // green
-      default: return '#3b82f6'; // blue
+  // Build clusters for cluster view
+  const clusters = clusterMode ? clusterReports(filteredReports) : null;
+
+  const getMarkerColor = (severity, priorityScore) => {
+    if (priorityScore >= 85) return '#ef4444';     // Critical red
+    switch (severity) {
+      case 'Critical': return '#ef4444';
+      case 'High': return '#f97316';
+      case 'Medium': return '#eab308';
+      case 'Low': return '#22c55e';
+      default: return '#3b82f6';
     }
+  };
+
+  const getClusterMarkerColor = (count) => {
+    if (count >= 5) return '#ef4444';
+    if (count >= 3) return '#f97316';
+    if (count >= 2) return '#eab308';
+    return '#3b82f6';
   };
 
   return (
@@ -68,16 +79,27 @@ export default function MapPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button 
+            <button
               onClick={() => setHeatmapMode(!heatmapMode)}
-              className={`px-3 py-2 text-xs rounded-xl border flex items-center gap-2 transition-all ${heatmapMode ? 'bg-rose-500/20 border-rose-500/50 text-rose-400' : 'glass-input bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'}`}
+              className={`px-3 py-2 text-xs rounded-xl border flex items-center gap-2 transition-all ${
+                heatmapMode ? 'bg-rose-500/20 border-rose-500/50 text-rose-400' : 'glass-input bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'
+              }`}
             >
               <Activity className="w-4 h-4" />
               Heatmap
             </button>
+            <button
+              onClick={() => setClusterMode(!clusterMode)}
+              className={`px-3 py-2 text-xs rounded-xl border flex items-center gap-2 transition-all ${
+                clusterMode ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'glass-input bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Cluster View
+            </button>
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={e => setFilterCategory(e.target.value)}
               className="px-3 py-2 text-xs rounded-xl glass-input bg-slate-900"
             >
               <option value="All">All Categories</option>
@@ -91,7 +113,7 @@ export default function MapPage() {
             </select>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={e => setFilterStatus(e.target.value)}
               className="px-3 py-2 text-xs rounded-xl glass-input bg-slate-900"
             >
               <option value="All">All Statuses</option>
@@ -105,25 +127,64 @@ export default function MapPage() {
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-4 px-2 text-xs font-semibold">
-           <span className="text-slate-400">Legend:</span>
-           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Critical</span>
-           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span> High</span>
-           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Medium</span>
-           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500"></span> Low</span>
+          <span className="text-slate-400">Legend:</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" />Critical</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500" />High</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />Medium</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500" />Low</span>
+          {clusterMode && (
+            <span className="flex items-center gap-1.5 text-purple-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 ring-2 ring-purple-400 ring-offset-1 ring-offset-slate-900" />
+              Cluster (multiple reports)
+            </span>
+          )}
         </div>
 
         {/* Map Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Interactive Geographic Map Canvas View */}
+          {/* Map */}
           <div className="lg:col-span-2 p-1 rounded-2xl glass-panel border border-slate-800 relative min-h-[500px] flex flex-col overflow-hidden">
-             <MapContainer center={[13.0827, 80.2707]} zoom={12} style={mapStyle}>
+            <MapContainer center={[13.0827, 80.2707]} zoom={12} style={mapStyle}>
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               />
-              {filteredReports.map(report => {
+
+              {/* Cluster Mode */}
+              {clusterMode && clusters && clusters.map((cluster, idx) => {
+                const rep = cluster.representative;
+                if (!rep.latitude || !rep.longitude) return null;
+                const radius = Math.max(8, Math.min(22, 8 + cluster.count * 3));
+                return (
+                  <CircleMarker
+                    key={`cluster-${idx}`}
+                    center={[rep.latitude, rep.longitude]}
+                    radius={radius}
+                    pathOptions={{
+                      color: '#7c3aed',
+                      weight: 2,
+                      fillColor: getClusterMarkerColor(cluster.count),
+                      fillOpacity: 0.85,
+                    }}
+                    eventHandlers={{ click: () => setSelectedReport({ ...rep, _clusterCount: cluster.count, _clusterReports: cluster.reports }) }}
+                  >
+                    <Popup className="custom-popup">
+                      <div className="text-slate-800 font-sans p-1 min-w-[170px]">
+                        <h4 className="font-bold text-sm mb-1">{rep.title}</h4>
+                        <p className="text-xs text-slate-600">{rep.address || rep.location}</p>
+                        <p className="text-xs font-semibold mt-1" style={{ color: getClusterMarkerColor(cluster.count) }}>
+                          {cluster.count} related reports · Priority: {rep.priorityScore}/100
+                        </p>
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                );
+              })}
+
+              {/* Normal / Heatmap Mode */}
+              {!clusterMode && filteredReports.map(report => {
                 if (!report.latitude || !report.longitude) return null;
-                
+
                 if (heatmapMode) {
                   return (
                     <CircleMarker
@@ -135,30 +196,36 @@ export default function MapPage() {
                   );
                 }
 
+                const relatedCount = report.relatedReportCount || 0;
+                const radius = Math.max(8, Math.min(16, 8 + relatedCount * 2));
+
                 return (
                   <CircleMarker
                     key={report.id}
                     center={[report.latitude, report.longitude]}
-                    radius={8}
-                    pathOptions={{ 
-                      color: '#0f172a', 
+                    radius={radius}
+                    pathOptions={{
+                      color: '#0f172a',
                       weight: 2,
-                      fillColor: getMarkerColor(report.severity), 
-                      fillOpacity: 1 
+                      fillColor: getMarkerColor(report.severity, report.priorityScore),
+                      fillOpacity: 1,
                     }}
-                    eventHandlers={{
-                      click: () => setSelectedReport(report),
-                    }}
+                    eventHandlers={{ click: () => setSelectedReport(report) }}
                   >
                     <Popup className="custom-popup">
-                      <div className="text-slate-800 font-sans p-1 min-w-[150px]">
+                      <div className="text-slate-800 font-sans p-1 min-w-[160px]">
                         <h4 className="font-bold text-sm mb-1">{report.title}</h4>
                         <p className="text-xs text-slate-600 mb-1">{report.address || report.location}</p>
-                        <p className="text-xs font-semibold mt-2" style={{ color: getMarkerColor(report.severity) }}>
-                          {report.severity} • {report.priorityScore}/100
+                        <p className="text-xs font-semibold" style={{ color: getMarkerColor(report.severity, report.priorityScore) }}>
+                          {report.severity} · Priority: {report.priorityScore}/100
                         </p>
+                        {relatedCount > 0 && (
+                          <p className="text-xs text-purple-600 font-semibold mt-1">
+                            {relatedCount} related report{relatedCount > 1 ? 's' : ''}
+                          </p>
+                        )}
                         <div className="mt-2 pt-2 border-t border-slate-200">
-                           <button onClick={() => setSelectedReport(report)} className="text-xs text-blue-600 font-bold hover:underline">View Details in Panel</button>
+                          <button onClick={() => setSelectedReport(report)} className="text-xs text-blue-600 font-bold hover:underline">View in Panel</button>
                         </div>
                       </div>
                     </Popup>
@@ -168,7 +235,7 @@ export default function MapPage() {
             </MapContainer>
           </div>
 
-          {/* Pin Details Inspector Card */}
+          {/* Inspection Panel */}
           <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4 h-fit">
             <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-cyan-400" />
@@ -190,12 +257,26 @@ export default function MapPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Hazard Severity:</span>
-                    <span className="font-semibold" style={{ color: getMarkerColor(selectedReport.severity) }}>{selectedReport.severity}</span>
+                    <span className="font-semibold" style={{ color: getMarkerColor(selectedReport.severity, selectedReport.priorityScore) }}>
+                      {selectedReport.severity}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Priority Urgency:</span>
+                    <span className="text-slate-400">Priority:</span>
                     <span className="text-white font-bold">{selectedReport.priorityScore}/100</span>
                   </div>
+
+                  {/* Related Reports Count */}
+                  {(selectedReport.relatedReportCount > 0 || selectedReport._clusterCount > 1) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">Related Reports:</span>
+                      <span className="text-purple-400 font-bold flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        {selectedReport._clusterCount || selectedReport.relatedReportCount}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <span className="text-slate-400">Address:</span>
                     <span className="text-white font-semibold text-right max-w-[60%] truncate" title={selectedReport.address || selectedReport.location}>
@@ -208,12 +289,40 @@ export default function MapPage() {
                       {Number(selectedReport.latitude).toFixed(4)}, {Number(selectedReport.longitude).toFixed(4)}
                     </span>
                   </div>
+
+                  {/* AI authenticity badge */}
+                  {selectedReport.imageAuthenticity && (
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-slate-400">AI Verification:</span>
+                      <span className={`text-xs font-semibold flex items-center gap-1 ${
+                        selectedReport.imageAuthenticity === 'Likely Real' ? 'text-emerald-400' : 'text-amber-400'
+                      }`}>
+                        {selectedReport.imageAuthenticity === 'Likely Real' ? '✓ Verified' : '⚠️ Needs Review'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
                   <StatusBadge status={selectedReport.status} />
                   <PriorityBadge score={selectedReport.priorityScore} severity={selectedReport.severity} />
                 </div>
+
+                {/* Cluster-specific: show related reports list */}
+                {selectedReport._clusterReports && selectedReport._clusterReports.length > 1 && (
+                  <div className="border-t border-slate-800 pt-3 space-y-2">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Reports in this cluster</p>
+                    {selectedReport._clusterReports.slice(0, 4).map(r => (
+                      <div key={r.id} className="flex justify-between items-center text-xs">
+                        <Link to={`/report/${r.id}`} className="text-cyan-400 hover:underline truncate max-w-[140px]">{r.title}</Link>
+                        <span className="text-slate-400 font-mono">{r.priorityScore}/100</span>
+                      </div>
+                    ))}
+                    {selectedReport._clusterReports.length > 4 && (
+                      <p className="text-[10px] text-slate-500">+{selectedReport._clusterReports.length - 4} more</p>
+                    )}
+                  </div>
+                )}
 
                 <Link
                   to={`/report/${selectedReport.id}`}

@@ -3,14 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
 import PriorityBadge from '../components/PriorityBadge';
 import StatusBadge from '../components/StatusBadge';
-import { fetchReportById, updateReportStatus } from '../services/api';
+import { fetchReportById, fetchReports, updateReportStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ShieldAlert, MapPin, Calendar, User, Sparkles, CheckCircle2, Clock, ArrowLeft, ShieldCheck, RefreshCw } from 'lucide-react';
+import {
+  ShieldAlert, MapPin, Calendar, User, Sparkles, CheckCircle2,
+  Clock, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle, Users, Image as ImageIcon
+} from 'lucide-react';
 
 export default function ReportDetails() {
   const { id } = useParams();
   const { role } = useAuth();
   const [report, setReport] = useState(null);
+  const [relatedReports, setRelatedReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
@@ -18,19 +22,24 @@ export default function ReportDetails() {
     setLoading(true);
     const data = await fetchReportById(id);
     setReport(data);
+
+    // Find related reports (those that have this report's id as relatedIssueId, or vice versa)
+    if (data) {
+      const all = await fetchReports();
+      const related = all.filter(r => r.id !== id && (
+        r.relatedIssueId === id || data.relatedIssueId === r.id
+      ));
+      setRelatedReports(related);
+    }
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadReport();
-  }, [id]);
+  useEffect(() => { loadReport(); }, [id]);
 
   const handleStatusChange = async (newStatus) => {
     setUpdating(true);
     const updated = await updateReportStatus(id, newStatus);
-    if (updated) {
-      setReport({ ...updated });
-    }
+    if (updated) setReport(prev => ({ ...prev, status: newStatus }));
     setUpdating(false);
   };
 
@@ -38,7 +47,7 @@ export default function ReportDetails() {
     return (
       <DashboardLayout>
         <div className="p-12 text-center text-xs text-slate-400 glass-panel rounded-2xl border border-slate-800">
-          Loading report details...
+          Loading report details…
         </div>
       </DashboardLayout>
     );
@@ -50,18 +59,16 @@ export default function ReportDetails() {
         <div className="p-12 text-center text-xs text-slate-400 glass-panel rounded-2xl border border-slate-800 space-y-4">
           <p className="text-base font-bold text-white">Report #{id} Not Found</p>
           <Link to="/my-reports" className="inline-flex items-center gap-1.5 text-cyan-400 hover:underline">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to Reports List</span>
+            <ArrowLeft className="w-4 h-4" /><span>Return to Reports List</span>
           </Link>
         </div>
       </DashboardLayout>
     );
   }
 
-  // Define resolution timeline stages
-  const isPending = report.status === 'Pending' || report.status === 'Under Review';
+  const isPending    = report.status === 'Pending' || report.status === 'Under Review';
   const isInProgress = report.status === 'In Progress';
-  const isResolved = report.status === 'Resolved';
+  const isResolved   = report.status === 'Resolved';
 
   const timelineSteps = [
     {
@@ -77,6 +84,14 @@ export default function ReportDetails() {
       time: 'Automated Instant'
     },
     {
+      title: 'Duplicate/Similar Check',
+      desc: report.duplicateDetected
+        ? `${report.relatedReportCount} similar report(s) found nearby`
+        : 'No duplicate detected',
+      completed: true,
+      time: 'Automated'
+    },
+    {
       title: 'Municipal Task Dispatched',
       desc: isInProgress || isResolved ? 'Field team assigned to location' : 'Awaiting officer dispatch',
       completed: isInProgress || isResolved,
@@ -90,22 +105,32 @@ export default function ReportDetails() {
     }
   ];
 
+  const severityColor = {
+    Critical: '#ef4444',
+    High: '#f97316',
+    Medium: '#eab308',
+    Low: '#22c55e',
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Back Link & Header */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl glass-panel border border-slate-800">
           <div className="space-y-1">
             <Link to="/my-reports" className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:underline mb-1">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Reports</span>
+              <ArrowLeft className="w-3.5 h-3.5" /><span>Back to Reports</span>
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-white">{report.title}</h1>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">{report.id}</span>
+              {report.needsReview && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-0.5">
+                  <AlertTriangle className="w-3 h-3" />⚠️ Needs Review
+                </span>
+              )}
             </div>
           </div>
-
           <div className="flex items-center gap-3">
             <StatusBadge status={report.status} />
             <PriorityBadge score={report.priorityScore} severity={report.severity} />
@@ -117,7 +142,7 @@ export default function ReportDetails() {
           <div className="lg:col-span-2 space-y-6">
             {/* Overview & Image */}
             <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Issue Overview & Photo Proof</h2>
+              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Issue Overview &amp; Photo Proof</h2>
 
               {report.imageUrl && (
                 <div className="rounded-xl overflow-hidden max-h-80 border border-slate-800">
@@ -137,7 +162,6 @@ export default function ReportDetails() {
                     <div className="text-slate-200 truncate">{report.location}</div>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                   <Calendar className="w-4 h-4 text-cyan-400 shrink-0" />
                   <div>
@@ -145,7 +169,6 @@ export default function ReportDetails() {
                     <div className="text-slate-200">{new Date(report.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                   <User className="w-4 h-4 text-cyan-400 shrink-0" />
                   <div>
@@ -156,17 +179,46 @@ export default function ReportDetails() {
               </div>
             </div>
 
-            {/* Resolution Progress Timeline */}
+            {/* Related Reports / Cluster Info */}
+            {(report.duplicateDetected || relatedReports.length > 0 || (report.relatedReportCount > 0)) && (
+              <div className="p-6 rounded-2xl glass-panel border border-purple-500/30 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-400" />
+                  <h2 className="text-base font-bold text-white">Issue Cluster</h2>
+                  <span className="ml-auto text-xs bg-purple-500/10 border border-purple-500/30 text-purple-400 font-bold px-2 py-0.5 rounded-lg">
+                    {report.relatedReportCount || relatedReports.length} related
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Multiple citizens have independently reported a similar issue nearby. Individual reports are preserved.
+                </p>
+                {relatedReports.length > 0 && (
+                  <div className="space-y-2">
+                    {relatedReports.slice(0, 5).map(r => (
+                      <div key={r.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <Link to={`/report/${r.id}`} className="text-xs font-semibold text-white hover:text-cyan-400 truncate block">{r.title}</Link>
+                          <div className="text-[10px] text-slate-500">{r.location} · {r.status}</div>
+                        </div>
+                        <span className="text-xs font-bold text-amber-400 ml-3 shrink-0">{r.priorityScore}/100</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Resolution Timeline */}
             <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
               <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Resolution Workflow Timeline</h2>
-
               <div className="space-y-6 relative pl-6 border-l-2 border-slate-800 py-2">
                 {timelineSteps.map((step, idx) => (
                   <div key={idx} className="relative">
                     <div className={`absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      step.completed ? 'bg-emerald-500 border-emerald-400' : (step.current ? 'bg-amber-500 border-amber-400 animate-pulse' : 'bg-slate-900 border-slate-700')
-                    }`}>
-                    </div>
+                      step.completed ? 'bg-emerald-500 border-emerald-400' :
+                      step.current ? 'bg-amber-500 border-amber-400 animate-pulse' :
+                      'bg-slate-900 border-slate-700'
+                    }`} />
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-bold ${step.completed ? 'text-white' : 'text-slate-400'}`}>{step.title}</span>
@@ -180,9 +232,9 @@ export default function ReportDetails() {
             </div>
           </div>
 
-          {/* Right Sidebar: AI Analysis & Authority Action */}
+          {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* AI Insights Card */}
+            {/* AI Diagnostic Summary */}
             <div className="p-6 rounded-2xl glass-panel border border-cyan-500/30 space-y-4">
               <div className="flex items-center gap-2 text-cyan-400">
                 <Sparkles className="w-5 h-5" />
@@ -194,29 +246,77 @@ export default function ReportDetails() {
                 <div className="text-3xl font-extrabold text-cyan-400">{report.priorityScore}/100</div>
               </div>
 
-              <div className="space-y-2 text-xs text-slate-400">
+              {/* Image Authenticity */}
+              {report.imageAuthenticity && (
+                <div className="space-y-1.5 text-xs">
+                  <div className="text-slate-400 font-semibold">Image Authenticity</div>
+                  <div className={`flex items-center gap-2 font-bold text-sm ${
+                    report.imageAuthenticity === 'Likely Real' ? 'text-emerald-400' :
+                    report.imageAuthenticity === 'Possibly AI-Generated' ? 'text-orange-400' : 'text-amber-400'
+                  }`}>
+                    {report.imageAuthenticity === 'Likely Real' ? '🟢' :
+                     report.imageAuthenticity === 'Possibly AI-Generated' ? '🟠' : '🟡'}
+                    {report.imageAuthenticity}
+                  </div>
+                  {report.authenticityConfidence && (
+                    <div className="text-slate-400">{report.authenticityConfidence}% confidence</div>
+                  )}
+                  {report.needsReview && (
+                    <div className="flex items-center gap-1 text-amber-400 text-xs font-semibold bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      ⚠️ Authority review recommended
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* AI Reason */}
+              {report.aiReason && (
+                <div className="space-y-1 text-xs">
+                  <div className="text-slate-400 font-semibold">AI Reason</div>
+                  <div className="text-slate-300 italic leading-relaxed">{report.aiReason}</div>
+                </div>
+              )}
+
+              <div className="space-y-2 text-xs text-slate-400 border-t border-slate-800 pt-3">
                 <div className="flex justify-between">
                   <span>Category Impact:</span>
                   <span className="text-slate-200 font-semibold">{report.category}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Severity Hazard:</span>
-                  <span className="text-amber-400 font-semibold">{report.severity}</span>
+                  <span className="font-semibold" style={{ color: severityColor[report.severity] || '#94a3b8' }}>{report.severity}</span>
                 </div>
+                {report.detectedCategory && report.detectedCategory !== report.category && (
+                  <div className="flex justify-between">
+                    <span>AI Detected:</span>
+                    <span className="text-indigo-400 font-semibold">{report.detectedCategory}</span>
+                  </div>
+                )}
+                {report.relatedReportCount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Related Reports:</span>
+                    <span className="text-purple-400 font-bold">{report.relatedReportCount}</span>
+                  </div>
+                )}
+                {report.imageHash && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-1">
+                    <ImageIcon className="w-3 h-3" />
+                    Image fingerprint stored
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Officer Workflow Control */}
+            {/* Authority Controls */}
             <div className="p-6 rounded-2xl glass-panel border border-purple-500/30 space-y-4">
               <div className="flex items-center gap-2 text-purple-400">
                 <ShieldCheck className="w-5 h-5" />
                 <h3 className="text-sm font-bold text-white">Authority Status Controls</h3>
               </div>
-
               <p className="text-xs text-slate-400 leading-relaxed">
                 Officers can update the resolution status of this report in real time.
               </p>
-
               <div className="space-y-2 pt-2">
                 <button
                   onClick={() => handleStatusChange('Pending')}
@@ -226,7 +326,6 @@ export default function ReportDetails() {
                   <span>Set Pending Review</span>
                   {report.status === 'Pending' && <CheckCircle2 className="w-4 h-4 text-amber-400" />}
                 </button>
-
                 <button
                   onClick={() => handleStatusChange('In Progress')}
                   disabled={updating || report.status === 'In Progress'}
@@ -235,7 +334,6 @@ export default function ReportDetails() {
                   <span>Dispatch Team (In Progress)</span>
                   {report.status === 'In Progress' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                 </button>
-
                 <button
                   onClick={() => handleStatusChange('Resolved')}
                   disabled={updating || report.status === 'Resolved'}

@@ -13,6 +13,7 @@ export default function AuthorityDashboard() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+  const [filterPriority, setFilterPriority] = useState('All');
 
   const loadData = async () => {
     setLoading(true);
@@ -44,8 +45,23 @@ export default function AuthorityDashboard() {
     { title: 'Resolved Issues', value: String(resolvedCount), icon: CheckCircle2, color: 'emerald', subtitle: 'Completed works' },
   ];
 
+  // Apply filters
+  const filteredReports = reports.filter(r => {
+    if (filterPriority === 'All') return true;
+    if (['Critical', 'High', 'Medium', 'Low'].includes(filterPriority)) {
+      return r.severity === filterPriority || r.aiSeverity === filterPriority;
+    }
+    if (filterPriority === 'AI Verified') {
+      return r.imageAuthenticity === 'Likely Real';
+    }
+    if (filterPriority === 'Needs Review') {
+      return r.imageAuthenticity === 'Possibly AI-Generated' || r.imageAuthenticity === 'Uncertain';
+    }
+    return true;
+  });
+
   // Sort reports by priority score descending
-  const sortedReports = [...reports].sort((a, b) => b.priorityScore - a.priorityScore);
+  const sortedReports = [...filteredReports].sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
 
   return (
     <DashboardLayout>
@@ -65,7 +81,20 @@ export default function AuthorityDashboard() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="px-3 py-2 text-xs rounded-xl glass-input bg-slate-900 border border-slate-700 text-white"
+            >
+              <option value="All">All Priority</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+              <option value="AI Verified">AI Verified</option>
+              <option value="Needs Review">Needs Review</option>
+            </select>
             <button
               onClick={loadData}
               className="p-2.5 rounded-xl glass-panel border border-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -113,12 +142,20 @@ export default function AuthorityDashboard() {
                       <span className="font-bold text-sm text-white">{report.title}</span>
                       <PriorityBadge score={report.priorityScore} severity={report.severity} />
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
                       <span className="text-purple-400 font-medium">{report.category}</span>
                       <span>•</span>
                       <span>{report.location}</span>
                       <span>•</span>
                       <span>Reported by {report.reportedBy}</span>
+                      {report.imageAuthenticity && (
+                        <>
+                          <span>•</span>
+                          <span className={`flex items-center gap-1 ${report.imageAuthenticity === 'Likely Real' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {report.imageAuthenticity === 'Likely Real' ? '✓ AI Verified' : '⚠️ Needs Review'}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
