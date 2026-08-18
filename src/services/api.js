@@ -294,7 +294,6 @@ export async function createReport(reportData) {
     relatedIssueId: reportData.relatedIssueId ?? null,
     relatedReportCount: reportData.relatedReportCount ?? 0,
   };
-  };
 
   // Try Firestore with strict 300ms timeout
   try {
