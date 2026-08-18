@@ -4,6 +4,33 @@ import { db } from '../firebase/config';
 const API_BASE_URL = 'http://localhost:5000/api';
 const LOCAL_REPORTS_KEY = 'civinex_local_reports';
 
+const CATEGORY_DEFAULT_IMAGES = {
+  'Road Damage': {
+    before: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+  },
+  'Garbage': {
+    before: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80'
+  },
+  'Electricity': {
+    before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?auto=format&fit=crop&w=800&q=80'
+  },
+  'Streetlight': {
+    before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?auto=format&fit=crop&w=800&q=80'
+  },
+  'Water Leakage': {
+    before: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=800&q=80'
+  },
+  'Flooding': {
+    before: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+  }
+};
+
 const defaultSeedReports = [
   {
     id: 'rep-101',
@@ -12,6 +39,7 @@ const defaultSeedReports = [
     severity: 'High',
     priorityScore: 88,
     status: 'Pending',
+    verificationStatus: 'Requires Review',
     address: '123 Main St, Central Ward',
     location: '123 Main St, Central Ward',
     latitude: 13.0827,
@@ -19,7 +47,11 @@ const defaultSeedReports = [
     description: 'Large hazard hole in the left lane causing traffic slowdowns and wheel damage.',
     createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
     reportedBy: 'citizen@civinex.org',
-    imageUrl: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80'
+    beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].before,
+    imageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].before,
+    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].after,
+    completionDate: new Date(Date.now() - 3600000 * 1).toISOString(),
+    resolutionRemarks: 'Asphalt paving crew dispatched. Pothole completely filled and leveled.'
   },
   {
     id: 'rep-102',
@@ -28,6 +60,7 @@ const defaultSeedReports = [
     severity: 'Medium',
     priorityScore: 65,
     status: 'In Progress',
+    verificationStatus: 'Pending Verification',
     address: 'Park Avenue & 4th St',
     location: 'Park Avenue & 4th St',
     latitude: 13.0878,
@@ -35,7 +68,11 @@ const defaultSeedReports = [
     description: 'Waste bin uncleaned for 3 days attracting pests near residential area.',
     createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
     reportedBy: 'resident@civinex.org',
-    imageUrl: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80'
+    beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].before,
+    imageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].before,
+    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].after,
+    completionDate: new Date(Date.now() - 3600000 * 2).toISOString(),
+    resolutionRemarks: 'Sanitation squad dispatched. Dumpster emptied and surrounding sidewalk disinfected.'
   },
   {
     id: 'rep-103',
@@ -44,6 +81,7 @@ const defaultSeedReports = [
     severity: 'Medium',
     priorityScore: 54,
     status: 'Resolved',
+    verificationStatus: 'Verified Resolved',
     address: 'School Zone Ward 8',
     location: 'School Zone Ward 8',
     latitude: 13.0750,
@@ -51,7 +89,11 @@ const defaultSeedReports = [
     description: 'Dark corner at night creating safety concerns for children and parents.',
     createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
     reportedBy: 'parent@civinex.org',
-    imageUrl: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=600&q=80'
+    beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Electricity'].before,
+    imageUrl: CATEGORY_DEFAULT_IMAGES['Electricity'].before,
+    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Electricity'].after,
+    completionDate: new Date(Date.now() - 3600000 * 12).toISOString(),
+    resolutionRemarks: 'Replaced faulty LED transformer fixture and tested wiring system. Light fully operational.'
   },
   {
     id: 'rep-104',
@@ -60,6 +102,7 @@ const defaultSeedReports = [
     severity: 'Critical',
     priorityScore: 95,
     status: 'Pending',
+    verificationStatus: 'Pending Verification',
     address: 'Sector 4, Market Complex',
     location: 'Sector 4, Market Complex',
     latitude: 13.0900,
@@ -67,9 +110,47 @@ const defaultSeedReports = [
     description: 'Continuous clean water leak flooding market pathway and eroding asphalt.',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     reportedBy: 'shopowner@civinex.org',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=600&q=80'
+    beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].before,
+    imageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].before,
+    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].after,
+    completionDate: new Date(Date.now() - 3600000 * 1).toISOString(),
+    resolutionRemarks: 'Hydro squad replaced ruptured pipe section and tested water pressure.'
   }
 ];
+
+// Helper function to timeout hanging Firestore network requests
+function withTimeout(promise, ms = 300) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Firestore operation timeout')), ms);
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+// Helper function to timeout hanging fetch requests
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 300, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...fetchOptions,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
 
 function getStoredLocalReports() {
   const saved = localStorage.getItem(LOCAL_REPORTS_KEY);
@@ -78,7 +159,30 @@ function getStoredLocalReports() {
     return defaultSeedReports;
   }
   try {
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    // Ensure rep-103 and other seed reports have updated problem-specific photos,
+    // while user created reports remain clean until officer uploads evidence.
+    const updated = parsed.map(item => {
+      const seedMatch = defaultSeedReports.find(s => s.id === item.id);
+      if (seedMatch) {
+        return {
+          ...seedMatch,
+          ...item,
+          beforeImageUrl: seedMatch.beforeImageUrl,
+          afterImageUrl: item.afterImageUrl || seedMatch.afterImageUrl,
+          imageUrl: seedMatch.imageUrl
+        };
+      }
+      // If it's a user-created report with a stock photo, clear afterImageUrl so officer uploads real evidence
+      if (item.id && item.id.startsWith('rep-') && !['rep-101', 'rep-102', 'rep-103', 'rep-104'].includes(item.id)) {
+        if (item.afterImageUrl && (item.afterImageUrl.includes('unsplash') || item.afterImageUrl.includes('photo-'))) {
+          return { ...item, afterImageUrl: '' };
+        }
+      }
+      return item;
+    });
+    localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(updated));
+    return updated;
   } catch (e) {
     return defaultSeedReports;
   }
@@ -91,17 +195,17 @@ function saveLocalReports(reports) {
 // Fetch all reports (Firestore first, with backend/local fallback)
 export async function fetchReports() {
   try {
-    const querySnapshot = await getDocs(collection(db, 'issues'));
+    const querySnapshot = await withTimeout(getDocs(collection(db, 'issues')), 300);
     const firestoreReports = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     if (firestoreReports && firestoreReports.length > 0) {
       return firestoreReports;
     }
   } catch (err) {
-    console.warn('Firestore offline or empty, trying backend API / local fallback:', err);
+    // Quiet fallback
   }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/reports`);
+    const res = await fetchWithTimeout(`${API_BASE_URL}/reports`, { timeout: 300 });
     if (res.ok) {
       const data = await res.json();
       if (data.reports && data.reports.length > 0) {
@@ -110,7 +214,7 @@ export async function fetchReports() {
       }
     }
   } catch (err) {
-    console.warn('Backend API offline, using local storage fallback for reports:', err);
+    // Quiet fallback
   }
   return getStoredLocalReports();
 }
@@ -130,7 +234,6 @@ export function subscribeToReports(callback) {
         fetchReports().then(callback);
       }
     }, (err) => {
-      console.warn('Real-time snapshot error, falling back to fetchReports:', err);
       fetchReports().then(callback);
     });
   } catch (err) {
@@ -154,13 +257,17 @@ export async function createReport(reportData) {
   if (reportData.category === 'Road Damage' || reportData.category === 'Water Leakage') baseScore += 10;
 
   const priorityScore = reportData.priorityScore || Math.min(100, Math.max(15, baseScore));
+  const categoryImages = CATEGORY_DEFAULT_IMAGES[reportData.category] || CATEGORY_DEFAULT_IMAGES['Road Damage'];
+  const beforeImg = reportData.imageUrl || categoryImages.before;
 
   const newReport = {
+    id: `rep-${Date.now()}`,
     title: reportData.title || 'Untitled Civic Issue',
     category: reportData.category || 'General',
     severity: reportData.severity || 'Medium',
     priorityScore: priorityScore,
     status: 'Pending',
+    verificationStatus: 'Pending Verification',
     address: reportData.location || reportData.address || 'Central City Ward',
     location: reportData.location || reportData.address || 'Central City Ward',
     latitude: reportData.latitude || (13.08 + Math.random() * 0.02),
@@ -168,84 +275,116 @@ export async function createReport(reportData) {
     description: reportData.description || '',
     createdAt: new Date().toISOString(),
     reportedBy: reportData.reportedBy || 'Citizen',
-    image: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80',
-    imageUrl: reportData.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80'
+    beforeImageUrl: beforeImg,
+    image: beforeImg,
+    imageUrl: beforeImg,
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   };
 
+  // Try Firestore with strict 300ms timeout
   try {
-    const docRef = await addDoc(collection(db, 'issues'), newReport);
-    return { id: docRef.id, ...newReport };
+    await withTimeout(addDoc(collection(db, 'issues'), newReport), 300);
   } catch (err) {
-    console.warn('Firestore write offline, using API / local storage fallback:', err);
+    // Firestore timed out or unconfigured, proceed to backend / local store
   }
 
+  // Try Backend API with strict 300ms timeout
   try {
-    const res = await fetch(`${API_BASE_URL}/reports`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newReport)
+      body: JSON.stringify(newReport),
+      timeout: 300
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.report) return data.report;
+      if (data.report) {
+        const reports = getStoredLocalReports();
+        reports.unshift(data.report);
+        saveLocalReports(reports);
+        return data.report;
+      }
     }
   } catch (err) {
-    console.warn('Backend API offline, saving report to local storage:', err);
+    // Fallback to local storage
   }
 
-  const localReport = { id: `rep-${Date.now()}`, ...newReport };
   const reports = getStoredLocalReports();
-  reports.unshift(localReport);
+  reports.unshift(newReport);
   saveLocalReports(reports);
-  return localReport;
+  return newReport;
 }
 
 // Update report resolution status
 export async function updateReportStatus(id, status) {
+  return updateReportEvidence(id, { status });
+}
+
+// Update After Evidence & Verification Status
+export async function updateReportEvidence(id, evidenceData) {
   try {
     const reportRef = doc(db, 'issues', id);
-    await updateDoc(reportRef, { status });
-    return { id, status };
+    await withTimeout(updateDoc(reportRef, evidenceData), 300);
   } catch (err) {
-    console.warn('Firestore status update offline, trying backend API:', err);
+    // Firestore timeout fallback
   }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/reports/${id}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/reports/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
+      body: JSON.stringify(evidenceData),
+      timeout: 300
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.report) return data.report;
+      if (data.report) {
+        const reports = getStoredLocalReports();
+        const idx = reports.findIndex(r => r.id === id);
+        if (idx !== -1) {
+          reports[idx] = { ...reports[idx], ...evidenceData };
+          saveLocalReports(reports);
+        }
+        return data.report;
+      }
     }
   } catch (err) {
-    console.warn('Backend API status update offline, updating local storage:', err);
+    // Local fallback
   }
 
   const reports = getStoredLocalReports();
-  const report = reports.find(r => r.id === id);
-  if (report) {
-    report.status = status;
+  const idx = reports.findIndex(r => r.id === id);
+  if (idx !== -1) {
+    reports[idx] = { ...reports[idx], ...evidenceData };
     saveLocalReports(reports);
+    return reports[idx];
   }
-  return { id, status };
+  return { id, ...evidenceData };
+}
+
+// Update Verification Status
+export async function updateVerificationStatus(id, verificationStatus, remarks) {
+  const updatePayload = { verificationStatus };
+  if (remarks) updatePayload.resolutionRemarks = remarks;
+  return updateReportEvidence(id, updatePayload);
 }
 
 // Analyze AI Priority
 export async function analyzePriority(category, severity, description) {
   try {
-    const res = await fetch(`${API_BASE_URL}/ai/analyze-priority`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-priority`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, severity, description })
+      body: JSON.stringify({ category, severity, description }),
+      timeout: 300
     });
     if (res.ok) {
       return await res.json();
     }
   } catch (err) {
-    // Local calculation fallback
+    // Immediate calculation fallback
   }
 
   let baseScore = 50;
@@ -270,12 +409,20 @@ export async function fetchAnalyticsStats() {
   const inProgress = reports.filter(r => r.status === 'In Progress').length;
   const resolved = reports.filter(r => r.status === 'Resolved').length;
 
+  const verifiedResolved = reports.filter(r => r.verificationStatus === 'Verified Resolved').length;
+  const pendingVerification = reports.filter(r => r.verificationStatus === 'Pending Verification' || (!r.verificationStatus && r.status === 'In Progress')).length;
+  const requiresReview = reports.filter(r => r.verificationStatus === 'Requires Review').length;
+
   return {
     totalReports: total,
     pendingCount: pending,
     inProgressCount: inProgress,
     resolvedCount: resolved,
     resolutionRate: total > 0 ? `${Math.round((resolved / total) * 100)}%` : '0%',
+    verifiedResolvedCount: verifiedResolved,
+    pendingVerificationCount: pendingVerification,
+    requiresReviewCount: requiresReview,
+    verificationRate: total > 0 ? `${Math.round((verifiedResolved / total) * 100)}%` : '0%',
     categoryDistribution: [
       { name: 'Road Damage', count: reports.filter(r => r.category === 'Road Damage').length },
       { name: 'Garbage', count: reports.filter(r => r.category === 'Garbage').length },

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { createReport, analyzePriority } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, AlertTriangle, MapPin, Camera, Sparkles, CheckCircle2, Loader2, ArrowRight, LocateFixed } from 'lucide-react';
+import { PlusCircle, AlertTriangle, MapPin, Camera, Sparkles, CheckCircle2, Loader2, ArrowRight, LocateFixed, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Streetlight', 'Electricity', 'Flooding', 'Traffic', 'Other'];
 const SEVERITIES = [
@@ -16,6 +16,7 @@ const SEVERITIES = [
 export default function ReportProblem() {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Road Damage');
@@ -25,6 +26,8 @@ export default function ReportProblem() {
   const [longitude, setLongitude] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'url'
+  const [fileName, setFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiScore, setAiScore] = useState(null);
   const [aiRecommendation, setAiRecommendation] = useState('');
@@ -50,6 +53,36 @@ export default function ReportProblem() {
     };
   }, [category, severity, description]);
 
+  const handleFileSelect = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (.png, .jpg, .jpeg, .webp)');
+      return;
+    }
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImageUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files[0];
+    handleFileSelect(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !location) return;
@@ -64,7 +97,7 @@ export default function ReportProblem() {
         latitude,
         longitude,
         description,
-        imageUrl: imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80',
+        imageUrl: imageUrl || '',
         reportedBy: userProfile?.name || currentUser?.email || 'Citizen',
         priorityScore: aiScore
       });
@@ -88,7 +121,7 @@ export default function ReportProblem() {
             <div>
               <h1 className="text-xl font-bold text-white">Report a Civic Problem</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Submit issue details for automatic AI severity calculation & priority dispatch.
+                Submit issue details & image evidence for automatic AI severity calculation & priority dispatch.
               </p>
             </div>
           </div>
@@ -119,6 +152,8 @@ export default function ReportProblem() {
                   setTitle('');
                   setDescription('');
                   setLocation('');
+                  setImageUrl('');
+                  setFileName('');
                 }}
                 className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-slate-300 hover:text-white glass-panel border border-slate-700 rounded-xl"
               >
@@ -210,7 +245,7 @@ export default function ReportProblem() {
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">Detailed Description</label>
                 <textarea
-                  rows="4"
+                  rows="3"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe the issue size, traffic impact, or any safety concerns..."
@@ -218,18 +253,95 @@ export default function ReportProblem() {
                 ></textarea>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Photo Image URL (Optional)</label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/photo.jpg"
-                    className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl glass-input"
-                  />
-                  <Camera className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              {/* PHOTO IMAGE FILE UPLOAD SECTION */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-300">Upload Issue Photograph (Before Condition)</label>
+                  <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                        uploadMode === 'file' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('url')}
+                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                        uploadMode === 'url' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                      }`}
+                    >
+                      Image URL
+                    </button>
+                  </div>
                 </div>
+
+                {uploadMode === 'file' ? (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                    />
+
+                    {imageUrl ? (
+                      <div className="relative rounded-xl overflow-hidden border border-cyan-500/40 bg-slate-900 p-2 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <img src={imageUrl} alt="Uploaded Preview" className="w-16 h-16 rounded-lg object-cover border border-slate-700" />
+                          <div>
+                            <div className="text-xs font-bold text-white truncate max-w-[200px]">{fileName || 'Uploaded Image'}</div>
+                            <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> Image Ready for Report
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageUrl('');
+                            setFileName('');
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors mr-1"
+                          title="Remove Image"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        className="border-2 border-dashed border-slate-800 hover:border-cyan-500/60 bg-slate-900/40 hover:bg-slate-900/80 rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 group"
+                      >
+                        <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-200">Click to choose image file or drag & drop</p>
+                          <p className="text-[10px] text-slate-500">Supports PNG, JPG, JPEG, WEBP files directly from computer</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="https://example.com/photo.jpg"
+                      className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl glass-input"
+                    />
+                    <Camera className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  </div>
+                )}
               </div>
 
               <button
