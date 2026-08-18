@@ -74,7 +74,7 @@ export default function MapPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Spatial Civic Issue Map</h1>
-              <p className="text-xs text-slate-400">Real-time interactive geographic view from Firestore</p>
+              <p className="text-xs text-slate-400">Real-time interactive geographic view with Leaflet hotspot mapping</p>
             </div>
           </div>
 
@@ -106,6 +106,7 @@ export default function MapPage() {
               <option value="Road Damage">Road Damage</option>
               <option value="Garbage">Garbage</option>
               <option value="Water Leakage">Water Leakage</option>
+              <option value="Electricity">Electricity</option>
               <option value="Streetlight">Streetlight</option>
               <option value="Flooding">Flooding</option>
               <option value="Traffic">Traffic</option>
@@ -149,16 +150,16 @@ export default function MapPage() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               />
-
               {/* Cluster Mode */}
               {clusterMode && clusters && clusters.map((cluster, idx) => {
                 const rep = cluster.representative;
-                if (!rep.latitude || !rep.longitude) return null;
+                const lat = Number(rep.latitude) || 13.0827;
+                const lng = Number(rep.longitude) || 80.2707;
                 const radius = Math.max(8, Math.min(22, 8 + cluster.count * 3));
                 return (
                   <CircleMarker
                     key={`cluster-${idx}`}
-                    center={[rep.latitude, rep.longitude]}
+                    center={[lat, lng]}
                     radius={radius}
                     pathOptions={{
                       color: '#7c3aed',
@@ -183,13 +184,14 @@ export default function MapPage() {
 
               {/* Normal / Heatmap Mode */}
               {!clusterMode && filteredReports.map(report => {
-                if (!report.latitude || !report.longitude) return null;
+                const lat = Number(report.latitude) || 13.0827;
+                const lng = Number(report.longitude) || 80.2707;
 
                 if (heatmapMode) {
                   return (
                     <CircleMarker
                       key={report.id}
-                      center={[report.latitude, report.longitude]}
+                      center={[lat, lng]}
                       radius={25}
                       pathOptions={{ stroke: false, fillColor: '#ef4444', fillOpacity: 0.3 }}
                     />
@@ -202,7 +204,7 @@ export default function MapPage() {
                 return (
                   <CircleMarker
                     key={report.id}
-                    center={[report.latitude, report.longitude]}
+                    center={[lat, lng]}
                     radius={radius}
                     pathOptions={{
                       color: '#0f172a',
@@ -286,7 +288,7 @@ export default function MapPage() {
                   <div className="flex justify-between">
                     <span className="text-slate-400">Coordinates:</span>
                     <span className="text-slate-400 font-mono text-right">
-                      {Number(selectedReport.latitude).toFixed(4)}, {Number(selectedReport.longitude).toFixed(4)}
+                      {Number(selectedReport.latitude || 13.0827).toFixed(4)}, {Number(selectedReport.longitude || 80.2707).toFixed(4)}
                     </span>
                   </div>
 

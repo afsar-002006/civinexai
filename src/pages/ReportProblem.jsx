@@ -8,11 +8,11 @@ import { checkForDuplicates, calculatePriorityScore } from '../services/duplicat
 import { useAuth } from '../context/AuthContext';
 import {
   PlusCircle, AlertTriangle, MapPin, Camera, Sparkles,
-  CheckCircle2, Loader2, ArrowRight, LocateFixed, Image as ImageIcon,
+  CheckCircle2, Loader2, ArrowRight, LocateFixed, Upload, X, Image as ImageIcon,
   ShieldCheck, ShieldAlert, Mic, MicOff
 } from 'lucide-react';
 
-const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Streetlight', 'Flooding', 'Traffic', 'Other'];
+const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Streetlight', 'Electricity', 'Flooding', 'Traffic', 'Other'];
 const SEVERITIES = [
   { id: 'Low', label: 'Low' },
   { id: 'Medium', label: 'Medium' },
@@ -33,6 +33,7 @@ const FLOW = {
 export default function ReportProblem() {
   const { currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   // ── Form fields ──
   const [title, setTitle] = useState('');
@@ -44,11 +45,13 @@ export default function ReportProblem() {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
-  // ── AI / duplicate state ──
+  // ── AI / duplicate / upload state ──
   const [flow, setFlow] = useState(FLOW.FORM);
   const [photoAnalysis, setPhotoAnalysis] = useState(null);
   const [imageHash, setImageHash] = useState(null);
   const [duplicateResult, setDuplicateResult] = useState(null);
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'url'
+  const [fileName, setFileName] = useState('');
   const [aiScore, setAiScore] = useState(null);
   const [aiRecommendation, setAiRecommendation] = useState('');
   const [analyzingAi, setAnalyzingAi] = useState(false);
@@ -147,6 +150,37 @@ export default function ReportProblem() {
     setPhotoAnalysis(null);
     setImageHash(null);
     setDuplicateResult(null);
+  };
+
+  // ── Handle File Select ──
+  const handleFileSelect = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (.png, .jpg, .jpeg, .webp)');
+      return;
+    }
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      handleImageUrlChange(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files[0];
+    handleFileSelect(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
   };
 
   // ── Analyze Photo (manual button) ──
@@ -316,7 +350,7 @@ export default function ReportProblem() {
             <div>
               <h1 className="text-xl font-bold text-white">Report a Civic Problem</h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                AI analyzes your photo → checks for duplicates → calculates priority.
+                AI analyzes your photo &amp; uploaded evidence → checks for duplicates → calculates priority.
               </p>
             </div>
           </div>
@@ -354,7 +388,7 @@ export default function ReportProblem() {
                   setFlow(FLOW.FORM);
                   setSubmittedReportId(null);
                   setTitle(''); setDescription(''); setLocation('');
-                  setImageUrl(''); setPhotoAnalysis(null); setDuplicateResult(null);
+                  setImageUrl(''); setFileName(''); setPhotoAnalysis(null); setDuplicateResult(null);
                 }}
                 className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-slate-300 hover:text-white glass-panel border border-slate-700 rounded-xl"
               >
@@ -505,31 +539,420 @@ export default function ReportProblem() {
                   )}
                 </div>
 
-                {/* Image URL + Analyze button */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Photo Image URL (Optional)</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
+                {/* PHOTO IMAGE FILE UPLOAD / URL SECTION */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-300">Upload Issue Photograph (Before Condition)</label>
+                    <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('file')}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          uploadMode === 'file' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                        }`}
+                      >
+                        Upload File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('url')}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          uploadMode === 'url' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {uploadMode === 'file' ? (
+                    <div>
                       <input
-                        type="url"
-                        value={imageUrl}
-                        onChange={e => handleImageUrlChange(e.target.value)}
-                        placeholder="https://example.com/photo.jpg"
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+
+                      {imageUrl ? (
+                        <div className="relative rounded-xl overflow-hidden border border-cyan-500/40 bg-slate-900 p-2 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <img src={imageUrl} alt="Uploaded Preview" className="w-16 h-16 rounded-lg object-cover border border-slate-700" />
+                            <div>
+                              <div className="text-xs font-bold text-white truncate max-w-[200px]">{fileName || 'Uploaded Image'}</div>
+                              <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                                <CheckCircle2 className="w-3 h-3" /> Image Ready for Report
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAnalyzePhoto}
+                              disabled={isBusy}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1"
+                            >
+                              {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                              <span>AI Analyze</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleImageUrlChange('');
+                                setFileName('');
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Remove Image"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          onDrop={handleDrop}
+                          onDragOver={handleDragOver}
+                          className="border-2 border-dashed border-slate-800 hover:border-cyan-500/60 bg-slate-900/40 hover:bg-slate-900/80 rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 group"
+                        >
+                          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-bold text-slate-200">Click to choose image file or drag &amp; drop</p>
+                            <p className="text-[10px] text-slate-500">Supports PNG, JPG, JPEG, WEBP files directly from computer</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="url"
+                          value={imageUrl}
+                          onChange={e => handleImageUrlChange(e.target.value)}
+                          placeholder="https://example.com/photo.jpg"
+                          className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl glass-input"
+                          disabled={isBusy}
+                        />
+                        <Camera className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAnalyzePhoto}
+                        disabled={!imageUrl || isBusy}
+                        className="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                      >
+                        {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        Analyze Photo
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+        {/* ── Success Screen ── */}
+        {flow === FLOW.SUCCESS ? (
+          <div className="p-8 rounded-2xl glass-panel border border-cyan-500/30 text-center space-y-6">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-white">Report Submitted Successfully!</h2>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Your issue has been registered with ID{' '}
+                <span className="font-mono text-cyan-400 font-bold">{submittedReportId}</span> and assigned a
+                Priority Score of <span className="font-bold text-amber-400">{aiScore}/100</span>.
+              </p>
+              {duplicateResult?.isDuplicate && (
+                <p className="text-xs text-amber-400 mt-2">
+                  ℹ️ Your report was linked to {duplicateResult.relatedReports.length} existing similar report(s) — their priority has been updated.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => navigate(`/report/${submittedReportId}`)}
+                className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2"
+              >
+                <span>View Timeline &amp; Details</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setFlow(FLOW.FORM);
+                  setSubmittedReportId(null);
+                  setTitle('');
+                  setDescription('');
+                  setLocation('');
+                  setImageUrl('');
+                  setFileName('');
+                  setPhotoAnalysis(null);
+                  setDuplicateResult(null);
+                }}
+                className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-slate-300 hover:text-white glass-panel border border-slate-700 rounded-xl"
+              >
+                Submit Another Report
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* ── Main Form ── */}
+            <div className="lg:col-span-2 space-y-4">
+              <form onSubmit={handleFormSubmit} className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-5">
+                {/* Title */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Problem Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="e.g. Hazardous Deep Pothole on 5th Avenue"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl glass-input"
+                    disabled={isBusy}
+                  />
+                </div>
+
+                {/* Category + Location */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">Issue Category *</label>
+                    <select
+                      value={category}
+                      onChange={e => setCategory(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-xl glass-input bg-slate-900"
+                      disabled={isBusy}
+                    >
+                      {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                      <span>Location / Address *</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(pos => {
+                              setLatitude(pos.coords.latitude);
+                              setLongitude(pos.coords.longitude);
+                              setLocation(`GPS: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+                            });
+                          }
+                        }}
+                        className="text-cyan-400 flex items-center gap-1 hover:text-cyan-300 transition-colors"
+                        disabled={isBusy}
+                      >
+                        <LocateFixed className="w-3 h-3" /> Get GPS
+                      </button>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={location}
+                        onChange={e => setLocation(e.target.value)}
+                        placeholder="e.g. Near Central Metro Station"
                         className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl glass-input"
                         disabled={isBusy}
                       />
-                      <Camera className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      <MapPin className="w-4 h-4 text-cyan-400 absolute left-3 top-3" />
                     </div>
+                  </div>
+                </div>
+
+                {/* Severity */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">Self-Assessed Hazard Level</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {SEVERITIES.map(sev => (
+                      <button
+                        type="button"
+                        key={sev.id}
+                        onClick={() => setSeverity(sev.id)}
+                        disabled={isBusy}
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                          severity === sev.id
+                            ? 'bg-cyan-500/15 border-cyan-400 text-cyan-300 shadow-md'
+                            : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        {sev.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">Detailed Description</label>
                     <button
                       type="button"
-                      onClick={handleAnalyzePhoto}
-                      disabled={!imageUrl || isBusy}
-                      className="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                      onClick={toggleListening}
+                      disabled={isBusy}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg border flex items-center gap-1.5 transition-all ${
+                        isListening
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse shadow-md shadow-rose-500/20'
+                          : 'bg-slate-900/60 border-slate-700 text-cyan-400 hover:text-cyan-300 hover:bg-slate-800'
+                      }`}
+                      title={isListening ? 'Click to stop voice dictation' : 'Click to dictate description with microphone'}
                     >
-                      {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      Analyze Photo
+                      {isListening ? (
+                        <>
+                          <MicOff className="w-3.5 h-3.5" />
+                          <span>Stop Listening</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-3.5 h-3.5" />
+                          <span>Voice Input</span>
+                        </>
+                      )}
                     </button>
                   </div>
+                  <div className="relative">
+                    <textarea
+                      rows="4"
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder={isListening ? "Listening... Speak now to dictate your description..." : "Describe the issue size, traffic impact, or any safety concerns..."}
+                      className={`w-full px-3.5 py-2.5 text-sm rounded-xl glass-input resize-none transition-all ${
+                        isListening ? 'border-rose-500/50 ring-1 ring-rose-500/30' : ''
+                      }`}
+                      disabled={isBusy}
+                    />
+                    {isListening && (
+                      <div className="absolute right-3 bottom-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        Listening...
+                      </div>
+                    )}
+                  </div>
+                  {micError && (
+                    <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> {micError}
+                    </p>
+                  )}
+                </div>
+
+                {/* PHOTO IMAGE FILE UPLOAD / URL SECTION */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-300">Upload Issue Photograph (Before Condition)</label>
+                    <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('file')}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          uploadMode === 'file' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                        }`}
+                      >
+                        Upload File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('url')}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          uploadMode === 'url' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400'
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {uploadMode === 'file' ? (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+
+                      {imageUrl ? (
+                        <div className="relative rounded-xl overflow-hidden border border-cyan-500/40 bg-slate-900 p-2 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <img src={imageUrl} alt="Uploaded Preview" className="w-16 h-16 rounded-lg object-cover border border-slate-700" />
+                            <div>
+                              <div className="text-xs font-bold text-white truncate max-w-[200px]">{fileName || 'Uploaded Image'}</div>
+                              <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                                <CheckCircle2 className="w-3 h-3" /> Image Ready for Report
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAnalyzePhoto}
+                              disabled={isBusy}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1"
+                            >
+                              {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                              <span>AI Analyze</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleImageUrlChange('');
+                                setFileName('');
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Remove Image"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          onDrop={handleDrop}
+                          onDragOver={handleDragOver}
+                          className="border-2 border-dashed border-slate-800 hover:border-cyan-500/60 bg-slate-900/40 hover:bg-slate-900/80 rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 group"
+                        >
+                          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-bold text-slate-200">Click to choose image file or drag &amp; drop</p>
+                            <p className="text-[10px] text-slate-500">Supports PNG, JPG, JPEG, WEBP files directly from computer</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="url"
+                          value={imageUrl}
+                          onChange={e => handleImageUrlChange(e.target.value)}
+                          placeholder="https://example.com/photo.jpg"
+                          className="w-full pl-9 pr-3.5 py-2.5 text-sm rounded-xl glass-input"
+                          disabled={isBusy}
+                        />
+                        <Camera className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAnalyzePhoto}
+                        disabled={!imageUrl || isBusy}
+                        className="px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+                      >
+                        {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        Analyze Photo
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Status messages */}

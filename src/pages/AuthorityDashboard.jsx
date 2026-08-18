@@ -4,9 +4,11 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
-import { fetchReports, updateReportStatus } from '../services/api';
+import VerificationBadge from '../components/VerificationBadge';
+import UploadAfterEvidenceModal from '../components/UploadAfterEvidenceModal';
+import { fetchReports, updateReportStatus, updateReportEvidence } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, AlertCircle, Clock, Activity, CheckCircle2, ArrowRight, RefreshCw, Filter } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Clock, Activity, CheckCircle2, ArrowRight, RefreshCw, Upload, Image as ImageIcon } from 'lucide-react';
 
 export default function AuthorityDashboard() {
   const { userProfile } = useAuth();
@@ -14,6 +16,7 @@ export default function AuthorityDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
   const [filterPriority, setFilterPriority] = useState('All');
+  const [selectedReportForModal, setSelectedReportForModal] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -33,16 +36,24 @@ export default function AuthorityDashboard() {
     setUpdatingId(null);
   };
 
+  const handleEvidenceSubmit = async (evidenceData) => {
+    if (!selectedReportForModal) return;
+    setUpdatingId(selectedReportForModal.id);
+    await updateReportEvidence(selectedReportForModal.id, evidenceData);
+    await loadData();
+    setUpdatingId(null);
+  };
+
   const total = reports.length;
   const criticalCount = reports.filter(r => r.severity === 'Critical' || r.priorityScore >= 80).length;
   const pendingCount = reports.filter(r => r.status === 'Pending' || r.status === 'Under Review').length;
-  const resolvedCount = reports.filter(r => r.status === 'Resolved').length;
+  const verifiedCount = reports.filter(r => r.verificationStatus === 'Verified Resolved').length;
 
   const stats = [
     { title: 'Total Issues', value: String(total), icon: Activity, color: 'cyan', subtitle: 'Municipal jurisdiction' },
     { title: 'High AI Priority', value: String(criticalCount), icon: AlertCircle, color: 'red', subtitle: 'Requires urgent dispatch' },
-    { title: 'Pending Review', value: String(pendingCount), icon: Clock, color: 'amber', subtitle: 'New submissions' },
-    { title: 'Resolved Issues', value: String(resolvedCount), icon: CheckCircle2, color: 'emerald', subtitle: 'Completed works' },
+    { title: 'Pending Dispatch', value: String(pendingCount), icon: Clock, color: 'amber', subtitle: 'Awaiting field team' },
+    { title: 'Verified Resolved', value: String(verifiedCount), icon: ShieldCheck, color: 'emerald', subtitle: 'Before/After proof verified' },
   ];
 
   // Apply filters
@@ -77,7 +88,7 @@ export default function AuthorityDashboard() {
               Authority Portal — <span className="text-purple-400">{userProfile?.name || 'Officer'}</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Review AI priority scores, dispatch field teams, and update civic resolution statuses in real time.
+              Dispatch teams, upload completion evidence (After photos), and audit Before & After verification statuses.
             </p>
           </div>
 
@@ -123,8 +134,8 @@ export default function AuthorityDashboard() {
         <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">Priority Issue Dispatch Queue</h2>
-              <p className="text-xs text-slate-400">Issues sorted by AI Priority Score (0–100)</p>
+              <h2 className="text-lg font-bold text-white">Priority Issue & Verification Queue</h2>
+              <p className="text-xs text-slate-400">Sorted by AI Priority Score with Before/After audit status</p>
             </div>
           </div>
 
@@ -159,34 +170,37 @@ export default function AuthorityDashboard() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-3 shrink-0">
                     <StatusBadge status={report.status} />
+                    <VerificationBadge status={report.verificationStatus || 'Pending Verification'} size="sm" />
 
-                    {/* Officer Status Action Dropdown/Buttons */}
+                    {/* Officer Status & Evidence Action Buttons */}
                     <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setSelectedReportForModal(report)}
+                        className="px-3 py-1.5 text-xs font-semibold text-purple-300 hover:text-white bg-purple-950/80 hover:bg-purple-800 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-1"
+                        title="Upload completion photograph evidence"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Evidence</span>
+                      </button>
+
                       {report.status !== 'In Progress' && report.status !== 'Resolved' && (
                         <button
                           onClick={() => handleStatusUpdate(report.id, 'In Progress')}
                           disabled={updatingId === report.id}
                           className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors shadow-md disabled:opacity-50"
                         >
-                          Dispatch Team
+                          Dispatch
                         </button>
                       )}
-                      {report.status !== 'Resolved' && (
-                        <button
-                          onClick={() => handleStatusUpdate(report.id, 'Resolved')}
-                          disabled={updatingId === report.id}
-                          className="px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:text-white bg-emerald-950/80 hover:bg-emerald-800 border border-emerald-500/30 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          Mark Resolved
-                        </button>
-                      )}
+                      
                       <Link
                         to={`/report/${report.id}`}
-                        className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-700 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-700 rounded-lg transition-colors flex items-center gap-1"
                       >
-                        Details
+                        <span>Audit</span>
+                        <ArrowRight className="w-3 h-3" />
                       </Link>
                     </div>
                   </div>
@@ -196,6 +210,16 @@ export default function AuthorityDashboard() {
           )}
         </div>
       </div>
+
+      {/* Upload Evidence Modal */}
+      {selectedReportForModal && (
+        <UploadAfterEvidenceModal
+          report={selectedReportForModal}
+          isOpen={Boolean(selectedReportForModal)}
+          onClose={() => setSelectedReportForModal(null)}
+          onSubmit={handleEvidenceSubmit}
+        />
+      )}
     </DashboardLayout>
   );
 }

@@ -3,11 +3,16 @@ import { useParams, Link } from 'react-router-dom';
 import DashboardLayout from '../layouts/DashboardLayout';
 import PriorityBadge from '../components/PriorityBadge';
 import StatusBadge from '../components/StatusBadge';
-import { fetchReportById, fetchReports, updateReportStatus } from '../services/api';
+import VerificationBadge from '../components/VerificationBadge';
+import BeforeAfterComparison from '../components/BeforeAfterComparison';
+import UploadAfterEvidenceModal from '../components/UploadAfterEvidenceModal';
+import A4ReportStatement from '../components/A4ReportStatement';
+import { fetchReportById, fetchReports, updateReportStatus, updateReportEvidence, updateVerificationStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ShieldAlert, MapPin, Calendar, User, Sparkles, CheckCircle2,
-  Clock, ArrowLeft, ShieldCheck, RefreshCw, AlertTriangle, Users, Image as ImageIcon
+  Clock, ArrowLeft, ShieldCheck, RefreshCw, Upload, AlertTriangle,
+  Printer, FileText, Users, Image as ImageIcon
 } from 'lucide-react';
 
 export default function ReportDetails() {
@@ -17,6 +22,8 @@ export default function ReportDetails() {
   const [relatedReports, setRelatedReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isA4ModalOpen, setIsA4ModalOpen] = useState(false);
 
   const loadReport = async () => {
     setLoading(true);
@@ -39,7 +46,21 @@ export default function ReportDetails() {
   const handleStatusChange = async (newStatus) => {
     setUpdating(true);
     const updated = await updateReportStatus(id, newStatus);
-    if (updated) setReport(prev => ({ ...prev, status: newStatus }));
+    if (updated) setReport(prev => ({ ...prev, ...updated, status: newStatus }));
+    setUpdating(false);
+  };
+
+  const handleVerificationChange = async (newVerStatus) => {
+    setUpdating(true);
+    const updated = await updateVerificationStatus(id, newVerStatus);
+    if (updated) setReport(prev => ({ ...prev, ...updated, verificationStatus: newVerStatus }));
+    setUpdating(false);
+  };
+
+  const handleEvidenceSubmit = async (evidenceData) => {
+    setUpdating(true);
+    const updated = await updateReportEvidence(id, evidenceData);
+    if (updated) setReport(prev => ({ ...prev, ...updated }));
     setUpdating(false);
   };
 
@@ -47,7 +68,7 @@ export default function ReportDetails() {
     return (
       <DashboardLayout>
         <div className="p-12 text-center text-xs text-slate-400 glass-panel rounded-2xl border border-slate-800">
-          Loading report details…
+          Loading report details & photographic evidence...
         </div>
       </DashboardLayout>
     );
@@ -66,20 +87,22 @@ export default function ReportDetails() {
     );
   }
 
-  const isPending    = report.status === 'Pending' || report.status === 'Under Review';
+  // Resolution timeline stages
+  const isPending = report.status === 'Pending' || report.status === 'Under Review';
   const isInProgress = report.status === 'In Progress';
-  const isResolved   = report.status === 'Resolved';
+  const isResolved = report.status === 'Resolved';
+  const isVerified = report.verificationStatus === 'Verified Resolved';
 
   const timelineSteps = [
     {
       title: 'Report Submitted',
-      desc: `Registered by ${report.reportedBy || 'Citizen'}`,
+      desc: `Registered by ${report.reportedBy || 'Citizen'} with Before photograph evidence`,
       completed: true,
       time: new Date(report.createdAt).toLocaleString()
     },
     {
-      title: 'AI Priority Evaluated',
-      desc: `Assigned urgency score: ${report.priorityScore}/100`,
+      title: 'AI Urgency Evaluation',
+      desc: `Urgency priority score: ${report.priorityScore}/100`,
       completed: true,
       time: 'Automated Instant'
     },
@@ -98,10 +121,16 @@ export default function ReportDetails() {
       current: isPending
     },
     {
-      title: 'Issue Resolved & Verified',
-      desc: isResolved ? 'Problem fixed and verified by authority' : 'Resolution in progress',
-      completed: isResolved,
-      current: isInProgress
+      title: 'Corrective Action & After Photo Upload',
+      desc: report.afterImageUrl ? `Completion evidence uploaded (${report.completionDate ? new Date(report.completionDate).toLocaleDateString() : 'Recorded'})` : 'Awaiting completion photo from authority',
+      completed: Boolean(report.afterImageUrl),
+      current: isInProgress && !report.afterImageUrl
+    },
+    {
+      title: 'Verification Status Audit',
+      desc: `Current audit state: ${report.verificationStatus || 'Pending Verification'}`,
+      completed: isVerified,
+      current: Boolean(report.afterImageUrl) && !isVerified
     }
   ];
 
@@ -121,7 +150,7 @@ export default function ReportDetails() {
             <Link to="/my-reports" className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:underline mb-1">
               <ArrowLeft className="w-3.5 h-3.5" /><span>Back to Reports</span>
             </Link>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold text-white">{report.title}</h1>
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">{report.id}</span>
               {report.needsReview && (
@@ -131,24 +160,38 @@ export default function ReportDetails() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex flex-wrap items-center gap-3">
             <StatusBadge status={report.status} />
+            <VerificationBadge status={report.verificationStatus || 'Pending Verification'} />
             <PriorityBadge score={report.priorityScore} severity={report.severity} />
+
+            {/* Print Official A4 Statement Button */}
+            <button
+              onClick={() => setIsA4ModalOpen(true)}
+              className="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 shrink-0"
+              title="Generate printable official A4 report statement"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print A4 Statement</span>
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Overview & Image */}
-            <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Issue Overview &amp; Photo Proof</h2>
+        {/* BEFORE AND AFTER ISSUE VERIFICATION SECTION */}
+        <div className="p-6 rounded-2xl glass-panel border border-cyan-500/30 space-y-4">
+          <BeforeAfterComparison
+            report={report}
+            onOpenUploadModal={() => setIsUploadModalOpen(true)}
+          />
+        </div>
 
-              {report.imageUrl && (
-                <div className="rounded-xl overflow-hidden max-h-80 border border-slate-800">
-                  <img src={report.imageUrl} alt={report.title} className="w-full h-full object-cover" />
-                </div>
-              )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Details & Timeline */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Overview Details */}
+            <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
+              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Civic Complaint Specification</h2>
 
               <p className="text-sm text-slate-300 leading-relaxed">
                 {report.description || 'No detailed description was logged for this report.'}
@@ -158,21 +201,21 @@ export default function ReportDetails() {
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                   <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
                   <div>
-                    <div className="text-[10px] text-slate-500 font-semibold">LOCATION</div>
+                    <div className="text-[10px] text-slate-500 font-semibold uppercase">LOCATION</div>
                     <div className="text-slate-200 truncate">{report.location}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                   <Calendar className="w-4 h-4 text-cyan-400 shrink-0" />
                   <div>
-                    <div className="text-[10px] text-slate-500 font-semibold">SUBMITTED</div>
+                    <div className="text-[10px] text-slate-500 font-semibold uppercase">LOGGED DATE</div>
                     <div className="text-slate-200">{new Date(report.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                   <User className="w-4 h-4 text-cyan-400 shrink-0" />
                   <div>
-                    <div className="text-[10px] text-slate-500 font-semibold">REPORTER</div>
+                    <div className="text-[10px] text-slate-500 font-semibold uppercase">REPORTER</div>
                     <div className="text-slate-200 truncate">{report.reportedBy}</div>
                   </div>
                 </div>
@@ -210,7 +253,7 @@ export default function ReportDetails() {
 
             {/* Resolution Timeline */}
             <div className="p-6 rounded-2xl glass-panel border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Resolution Workflow Timeline</h2>
+              <h2 className="text-base font-bold text-white border-b border-slate-800 pb-3">Verification & Resolution Timeline</h2>
               <div className="space-y-6 relative pl-6 border-l-2 border-slate-800 py-2">
                 {timelineSteps.map((step, idx) => (
                   <div key={idx} className="relative">
@@ -232,7 +275,7 @@ export default function ReportDetails() {
             </div>
           </div>
 
-          {/* Right Sidebar */}
+          {/* Right Sidebar: AI Diagnostic & Verification Action Panel */}
           <div className="space-y-6">
             {/* AI Diagnostic Summary */}
             <div className="p-6 rounded-2xl glass-panel border border-cyan-500/30 space-y-4">
@@ -242,7 +285,7 @@ export default function ReportDetails() {
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Priority Urgency</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Priority Score</span>
                 <div className="text-3xl font-extrabold text-cyan-400">{report.priorityScore}/100</div>
               </div>
 
@@ -280,7 +323,7 @@ export default function ReportDetails() {
 
               <div className="space-y-2 text-xs text-slate-400 border-t border-slate-800 pt-3">
                 <div className="flex justify-between">
-                  <span>Category Impact:</span>
+                  <span>Category:</span>
                   <span className="text-slate-200 font-semibold">{report.category}</span>
                 </div>
                 <div className="flex justify-between">
@@ -308,45 +351,81 @@ export default function ReportDetails() {
               </div>
             </div>
 
-            {/* Authority Controls */}
+            {/* Officer Evidence & Verification Controls */}
             <div className="p-6 rounded-2xl glass-panel border border-purple-500/30 space-y-4">
-              <div className="flex items-center gap-2 text-purple-400">
-                <ShieldCheck className="w-5 h-5" />
-                <h3 className="text-sm font-bold text-white">Authority Status Controls</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-purple-400">
+                  <ShieldCheck className="w-5 h-5" />
+                  <h3 className="text-sm font-bold text-white">Verification Controls</h3>
+                </div>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Officers can update the resolution status of this report in real time.
+                Upload After-condition completion photo evidence and manage audit verification status.
               </p>
-              <div className="space-y-2 pt-2">
+
+              <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="w-full py-2.5 px-3 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Completion Evidence</span>
+              </button>
+
+              <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Change Verification Status</span>
                 <button
-                  onClick={() => handleStatusChange('Pending')}
-                  disabled={updating || report.status === 'Pending'}
-                  className="w-full py-2.5 px-3 text-xs font-semibold rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
+                  onClick={() => handleVerificationChange('Verified Resolved')}
+                  disabled={updating || report.verificationStatus === 'Verified Resolved'}
+                  className="w-full py-2 px-3 text-xs font-semibold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
                 >
-                  <span>Set Pending Review</span>
-                  {report.status === 'Pending' && <CheckCircle2 className="w-4 h-4 text-amber-400" />}
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Set Verified Resolved</span>
+                  </span>
+                  {report.verificationStatus === 'Verified Resolved' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                 </button>
                 <button
-                  onClick={() => handleStatusChange('In Progress')}
-                  disabled={updating || report.status === 'In Progress'}
-                  className="w-full py-2.5 px-3 text-xs font-semibold rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
+                  onClick={() => handleVerificationChange('Pending Verification')}
+                  disabled={updating || report.verificationStatus === 'Pending Verification'}
+                  className="w-full py-2 px-3 text-xs font-semibold rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
                 >
-                  <span>Dispatch Team (In Progress)</span>
-                  {report.status === 'In Progress' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Set Pending Verification</span>
+                  </span>
+                  {report.verificationStatus === 'Pending Verification' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                 </button>
                 <button
-                  onClick={() => handleStatusChange('Resolved')}
-                  disabled={updating || report.status === 'Resolved'}
-                  className="w-full py-2.5 px-3 text-xs font-semibold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
+                  onClick={() => handleVerificationChange('Requires Review')}
+                  disabled={updating || report.verificationStatus === 'Requires Review'}
+                  className="w-full py-2 px-3 text-xs font-semibold rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 disabled:opacity-40 transition-all text-left flex items-center justify-between"
                 >
-                  <span>Mark Issue as Resolved</span>
-                  {report.status === 'Resolved' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  <span className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Set Requires Review</span>
+                  </span>
+                  {report.verificationStatus === 'Requires Review' && <CheckCircle2 className="w-4 h-4 text-amber-400" />}
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Evidence Upload Modal */}
+      <UploadAfterEvidenceModal
+        report={report}
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onSubmit={handleEvidenceSubmit}
+      />
+
+      {/* A4 Report Statement Printable Modal */}
+      <A4ReportStatement
+        report={report}
+        isOpen={isA4ModalOpen}
+        onClose={() => setIsA4ModalOpen(false)}
+      />
     </DashboardLayout>
   );
 }
