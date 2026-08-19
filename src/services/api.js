@@ -38,7 +38,11 @@ const defaultSeedReports = [
     title: 'Major Pothole on Main Street',
     category: 'Road Damage',
     severity: 'High',
+    userPriority: 'High',
     priorityScore: 88,
+    aiPriorityScore: 88,
+    aiSeverity: 'Critical',
+    aiReason: 'Large visible road damage detected — poses significant safety risk to public traffic.',
     status: 'Pending',
     verificationStatus: 'Requires Review',
     address: '123 Main St, Central Ward',
@@ -59,7 +63,11 @@ const defaultSeedReports = [
     title: 'Overflowing Garbage Bin',
     category: 'Garbage',
     severity: 'Medium',
+    userPriority: 'Medium',
     priorityScore: 65,
+    aiPriorityScore: 65,
+    aiSeverity: 'High',
+    aiReason: 'Overflowing waste dump detected near residential sidewalk.',
     status: 'In Progress',
     verificationStatus: 'Pending Verification',
     address: 'Park Avenue & 4th St',
@@ -80,7 +88,11 @@ const defaultSeedReports = [
     title: 'Broken Streetlight Near School Zone',
     category: 'Electricity',
     severity: 'Medium',
+    userPriority: 'Medium',
     priorityScore: 54,
+    aiPriorityScore: 54,
+    aiSeverity: 'Medium',
+    aiReason: 'Broken electrical light fixture logged in school zone.',
     status: 'Resolved',
     verificationStatus: 'Verified Resolved',
     address: 'School Zone Ward 8',
@@ -101,7 +113,11 @@ const defaultSeedReports = [
     title: 'Severe Underground Pipe Leakage',
     category: 'Water Leakage',
     severity: 'Critical',
+    userPriority: 'Critical',
     priorityScore: 95,
+    aiPriorityScore: 95,
+    aiSeverity: 'Critical',
+    aiReason: 'Continuous water pipeline leakage flooding market pathway.',
     status: 'Pending',
     verificationStatus: 'Pending Verification',
     address: 'Sector 4, Market Complex',
@@ -167,6 +183,10 @@ function getStoredLocalReports() {
         return {
           ...seedMatch,
           ...item,
+          userPriority: item.userPriority || item.severity || seedMatch.userPriority,
+          aiPriorityScore: item.aiPriorityScore || item.priorityScore || seedMatch.aiPriorityScore,
+          aiSeverity: item.aiSeverity || seedMatch.aiSeverity,
+          aiReason: item.aiReason || seedMatch.aiReason,
           beforeImageUrl: seedMatch.beforeImageUrl,
           afterImageUrl: item.afterImageUrl || seedMatch.afterImageUrl,
           imageUrl: seedMatch.imageUrl
@@ -177,7 +197,11 @@ function getStoredLocalReports() {
           return { ...item, afterImageUrl: '' };
         }
       }
-      return item;
+      return {
+        ...item,
+        userPriority: item.userPriority || item.severity || 'Medium',
+        aiPriorityScore: item.aiPriorityScore || item.priorityScore || 50
+      };
     });
     localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(updated));
     return updated;
@@ -254,7 +278,9 @@ export async function createReport(reportData) {
   else if (reportData.severity === 'Medium') baseScore += 10;
   if (reportData.category === 'Road Damage' || reportData.category === 'Water Leakage') baseScore += 10;
 
+  const userPriority = reportData.userPriority || reportData.severity || 'Medium';
   const priorityScore = reportData.priorityScore ?? Math.min(100, Math.max(15, baseScore));
+  const aiPriorityScore = reportData.aiPriorityScore ?? priorityScore;
   const categoryImages = CATEGORY_DEFAULT_IMAGES[reportData.category] || CATEGORY_DEFAULT_IMAGES['Road Damage'];
   const beforeImg = reportData.imageUrl || categoryImages.before;
 
@@ -262,8 +288,10 @@ export async function createReport(reportData) {
     id: `rep-${Date.now()}`,
     title: reportData.title || 'Untitled Civic Issue',
     category: reportData.category || 'General',
-    severity: reportData.severity || 'Medium',
+    userPriority,
+    severity: userPriority, // stored for backward compatibility
     priorityScore,
+    aiPriorityScore,
     status: 'Pending',
     verificationStatus: 'Pending Verification',
     address: reportData.location || reportData.address || 'Central City Ward',

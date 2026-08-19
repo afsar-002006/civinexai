@@ -1,11 +1,12 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShieldAlert, LogOut, User, Sparkles } from 'lucide-react';
+import { ShieldAlert, LogOut, User, Sparkles, Activity } from 'lucide-react';
 
 export default function Navbar() {
   const { currentUser, userProfile, role, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     try {
@@ -13,6 +14,18 @@ export default function Navbar() {
       navigate('/login');
     } catch (err) {
       console.error("Logout failed", err);
+    }
+  };
+
+  const handleWorkflowClick = (e) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      const el = document.getElementById('workflow');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      navigate('/#workflow');
     }
   };
 
@@ -35,6 +48,15 @@ export default function Navbar() {
 
         {/* Navigation / User controls */}
         <div className="flex items-center gap-4">
+          <a
+            href="#workflow"
+            onClick={handleWorkflowClick}
+            className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-800"
+          >
+            <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Workflow</span>
+          </a>
+
           {currentUser ? (
             <div className="flex items-center gap-3">
               {/* Role badge & info */}

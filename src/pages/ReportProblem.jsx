@@ -464,9 +464,12 @@ export default function ReportProblem() {
                   </div>
                 </div>
 
-                {/* Severity */}
+                {/* Severity / User Priority */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">Self-Assessed Hazard Level</label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-semibold text-slate-300">User Priority (Self-Assessed) *</label>
+                    <span className="text-[10px] text-cyan-400">Selected: <strong className="text-white">{severity}</strong></span>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {SEVERITIES.map(sev => (
                       <button
@@ -474,9 +477,9 @@ export default function ReportProblem() {
                         key={sev.id}
                         onClick={() => setSeverity(sev.id)}
                         disabled={isBusy}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
                           severity === sev.id
-                            ? 'bg-cyan-500/15 border-cyan-400 text-cyan-300 shadow-md'
+                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md ring-1 ring-cyan-400/30'
                             : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800'
                         }`}
                       >
@@ -693,21 +696,34 @@ export default function ReportProblem() {
               </form>
             </div>
 
-            {/* ── AI Analysis Sidebar ── */}
+            {/* ── AI Analysis & User Priority Sidebar ── */}
             <div className="p-6 rounded-2xl glass-panel border border-cyan-500/30 space-y-5 h-fit">
               <div className="flex items-center gap-2 text-cyan-400">
                 <Sparkles className="w-5 h-5" />
-                <h3 className="text-base font-bold text-white">AI PHOTO ANALYSIS</h3>
+                <h3 className="text-base font-bold text-white">PRIORITY ANALYSIS</h3>
               </div>
 
-              {!photoAnalysis ? (
-                <>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    The AI will automatically analyze your photo when you submit — or click "Analyze Photo" to preview now.
-                  </p>
+              {/* User Priority Summary Box */}
+              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">User Priority</div>
+                  <div className="text-xs text-slate-500">Self-Assessed by Citizen</div>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                  severity === 'Critical' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                  severity === 'High' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                  severity === 'Medium' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                  'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {severity}
+                </span>
+              </div>
 
-                  <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-center space-y-2">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Calculated Priority Score</span>
+              {/* AI Priority & Analysis Display */}
+              {!photoAnalysis ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-slate-900/80 border border-cyan-500/20 text-center space-y-2">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">AI Priority Score</span>
                     <div className="text-4xl font-extrabold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                       {analyzingAi ? '…' : (aiScore !== null ? `${aiScore}/100` : '—')}
                     </div>
@@ -716,81 +732,68 @@ export default function ReportProblem() {
                     </div>
                   </div>
 
-                  <div className="space-y-2.5 text-xs text-slate-400 border-t border-slate-800 pt-4">
+                  <div className="space-y-2.5 text-xs text-slate-400 border-t border-slate-800 pt-3">
+                    <div className="flex justify-between">
+                      <span>User Priority:</span>
+                      <span className="text-slate-200 font-semibold">{severity}</span>
+                    </div>
                     <div className="flex justify-between">
                       <span>Category Factor:</span>
                       <span className="text-slate-200 font-semibold">{category}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Hazard Severity:</span>
-                      <span className="text-slate-200 font-semibold">{severity}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Dispatch Target:</span>
-                      <span className="text-emerald-400 font-semibold">Local Municipal Ward</span>
+                      <span>Photo Analysis:</span>
+                      <span className="text-indigo-400 font-semibold">Upload photo for AI inspection</span>
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Authenticity */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-slate-400">Image Authenticity</div>
-                    <div className="text-sm font-semibold text-white flex items-center gap-2">
-                      {photoAnalysis.imageAuthenticity === 'Likely Real' ? '🟢' :
-                        photoAnalysis.imageAuthenticity === 'Possibly AI-Generated' ? '🟠' : '🟡'}
-                      {photoAnalysis.imageAuthenticity}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {photoAnalysis.authenticityConfidence}% confidence
-                    </div>
-                    {photoAnalysis.needsReview && (
-                      <div className="mt-1 text-xs text-amber-400 font-semibold flex items-center gap-1 bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1.5">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        ⚠️ Needs Authority Review
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Detected Category */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-slate-400">Detected</div>
-                    <div className="text-sm font-semibold text-white">{photoAnalysis.detectedCategory}</div>
-                  </div>
-
-                  {/* Severity */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-slate-400">Severity</div>
-                    <div className="text-sm font-semibold">
-                      {photoAnalysis.aiSeverity === 'Critical' ? '🔴 Critical' :
-                        photoAnalysis.aiSeverity === 'High' ? '🟠 High' :
-                        photoAnalysis.aiSeverity === 'Medium' ? '🟡 Medium' : '🟢 Low'}
-                    </div>
-                  </div>
-
-                  {/* AI Reason */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-slate-400">Reason</div>
-                    <div className="text-xs text-slate-300 italic leading-relaxed">{photoAnalysis.aiReason}</div>
-                  </div>
-
-                  {/* Image hash indicator */}
-                  {imageHash && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-900/50 border border-slate-800 rounded-lg px-2 py-1.5">
-                      <ImageIcon className="w-3 h-3" />
-                      <span>Image fingerprint computed for duplicate detection</span>
-                    </div>
-                  )}
-
-                  {/* Priority Score */}
-                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-center space-y-1">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Priority Score</span>
-                    <div className="text-3xl font-extrabold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                  {/* AI Score */}
+                  <div className="p-4 rounded-xl bg-slate-900/80 border border-cyan-500/30 text-center space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">AI Priority Score</span>
+                    <div className="text-4xl font-extrabold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                       {photoAnalysis.priorityScore}/100
                     </div>
-                    <div className="text-xs font-semibold text-cyan-300 uppercase">
-                      {photoAnalysis.priorityScore >= 80 ? 'CRITICAL — Immediate Attention' :
-                        photoAnalysis.priorityScore >= 60 ? 'HIGH — Prompt Attention' : 'Routine Maintenance'}
+                    <div className="text-xs font-bold text-cyan-300 uppercase">
+                      AI Severity: {photoAnalysis.aiSeverity}
+                    </div>
+                  </div>
+
+                  {/* AI Category & Reason */}
+                  <div className="space-y-2 text-xs bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">User Priority:</span>
+                      <span className="text-white font-bold">{severity}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">AI Detected Category:</span>
+                      <span className="text-cyan-400 font-bold">{photoAnalysis.detectedCategory}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">AI Severity:</span>
+                      <span className={`font-bold ${
+                        photoAnalysis.aiSeverity === 'Critical' ? 'text-red-400' :
+                        photoAnalysis.aiSeverity === 'High' ? 'text-orange-400' :
+                        photoAnalysis.aiSeverity === 'Medium' ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>{photoAnalysis.aiSeverity}</span>
+                    </div>
+                  </div>
+
+                  {/* AI Reason Box */}
+                  <div className="space-y-1">
+                    <div className="text-xs text-slate-400 font-semibold">AI Reason:</div>
+                    <div className="text-xs text-slate-300 italic leading-relaxed bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                      "{photoAnalysis.aiReason}"
+                    </div>
+                  </div>
+
+                  {/* Authenticity */}
+                  <div className="space-y-1 pt-1 border-t border-slate-800">
+                    <div className="text-xs text-slate-400">Image Authenticity Check</div>
+                    <div className="text-xs font-semibold text-white flex items-center justify-between">
+                      <span>{photoAnalysis.imageAuthenticity === 'Likely Real' ? '🟢 Genuine Photo' : '⚠️ Needs Verification'}</span>
+                      <span className="text-slate-400">{photoAnalysis.authenticityConfidence}% confidence</span>
                     </div>
                   </div>
                 </div>

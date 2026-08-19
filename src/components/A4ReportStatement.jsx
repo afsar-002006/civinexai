@@ -85,24 +85,34 @@ export default function A4ReportStatement({ report, isOpen, onClose }) {
         </div>
 
         {/* Grid Metadata */}
-        <div className="grid grid-cols-4 gap-3 text-xs bg-slate-100/70 p-3.5 rounded-xl border border-slate-200">
+        <div className="grid grid-cols-5 gap-2 text-xs bg-slate-100/70 p-3.5 rounded-xl border border-slate-200">
           <div>
             <div className="text-[10px] font-bold text-slate-500 uppercase">Reporter</div>
             <div className="font-semibold text-slate-800 truncate">{report.reportedBy || 'Citizen'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase">Date Logged</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">User Priority</div>
+            <div className="font-bold text-slate-900">{report.userPriority || report.severity || 'Medium'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-cyan-700 uppercase">AI Priority</div>
+            <div className="font-extrabold text-cyan-900">{report.aiPriorityScore || report.priorityScore}/100</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">AI Severity</div>
+            <div className="font-bold text-slate-900">{report.aiSeverity || report.severity || 'N/A'}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase">Logged Date</div>
             <div className="font-semibold text-slate-800">{new Date(report.createdAt).toLocaleDateString()}</div>
           </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase">AI Priority Score</div>
-            <div className="font-extrabold text-slate-900">{report.priorityScore}/100</div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase">Completion Date</div>
-            <div className="font-semibold text-slate-800">{report.completionDate ? new Date(report.completionDate).toLocaleDateString() : 'Recorded'}</div>
-          </div>
         </div>
+
+        {report.aiReason && (
+          <div className="p-3 bg-cyan-50/60 border border-cyan-200 rounded-xl text-xs text-cyan-950">
+            <span className="font-bold text-cyan-900">AI Analysis Reason:</span> {report.aiReason}
+          </div>
+        )}
 
         {/* SECTION 4: BEFORE AND AFTER PHOTOGRAPHIC EVIDENCE COMPARISON STATEMENT */}
         <div className="space-y-4 pt-2">

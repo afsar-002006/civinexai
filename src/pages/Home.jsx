@@ -1,9 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { ShieldAlert, AlertTriangle, Cpu, BarChart2, CheckCircle2, ArrowRight } from 'lucide-react';
+import InteractiveWorkflow from '../components/InteractiveWorkflow';
+import { ShieldAlert, AlertTriangle, Cpu, BarChart2, CheckCircle2, ArrowRight, PlayCircle, Sparkles } from 'lucide-react';
 
 export default function Home() {
+  const scrollToWorkflow = () => {
+    const workflowEl = document.getElementById('workflow');
+    if (workflowEl) {
+      workflowEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
       <Navbar />
@@ -16,7 +24,7 @@ export default function Home() {
 
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-panel border-cyan-500/30 text-cyan-400 text-xs font-semibold">
-            <Cpu className="w-4 h-4" />
+            <Cpu className="w-4 h-4 text-cyan-400 animate-pulse" />
             <span>AI-Powered Civic Intelligence Platform</span>
           </div>
 
@@ -39,18 +47,20 @@ export default function Home() {
               <span>Get Started</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link
-              to="/login"
-              className="w-full sm:w-auto px-6 py-3.5 text-sm font-semibold text-slate-300 hover:text-white glass-panel hover:bg-slate-900 border border-slate-700/60 rounded-xl transition-all"
+
+            <button
+              onClick={scrollToWorkflow}
+              className="w-full sm:w-auto px-6 py-3.5 text-sm font-semibold text-cyan-300 hover:text-white glass-panel hover:bg-slate-900 border border-cyan-500/30 rounded-xl transition-all flex items-center justify-center gap-2"
             >
-              Sign In to Portal
-            </Link>
+              <PlayCircle className="w-4 h-4 text-cyan-400" />
+              <span>Explore Interactive Workflow</span>
+            </button>
           </div>
         </div>
       </section>
 
       {/* Feature Highlights Grid */}
-      <section className="max-w-6xl mx-auto px-4 pb-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="max-w-6xl mx-auto px-4 pb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 rounded-2xl glass-panel glass-panel-hover">
           <div className="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-4 border border-cyan-500/20">
             <AlertTriangle className="w-6 h-6" />
@@ -65,9 +75,9 @@ export default function Home() {
           <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-4 border border-purple-500/20">
             <Cpu className="w-6 h-6" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2">Mock AI Priority Scoring</h3>
+          <h3 className="text-lg font-bold text-white mb-2">AI Priority Scoring & Clustering</h3>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Automated intelligence analyzes category severity and generates priority scores (0–100) to bubble up critical hazards.
+            Automated intelligence analyzes category severity, checks spatial duplicates, and computes priority scores (0–100) to bubble up critical hazards.
           </p>
         </div>
 
@@ -77,14 +87,17 @@ export default function Home() {
           </div>
           <h3 className="text-lg font-bold text-white mb-2">Transparent Progress Tracking</h3>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Track report statuses from submission to review, in-progress resolution, and final completion on interactive timelines.
+            Track report statuses from submission to review, in-progress resolution, and final completion with verified before/after proof.
           </p>
         </div>
       </section>
 
+      {/* Main Interactive Workflow Component */}
+      <InteractiveWorkflow />
+
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-        <p>CiviNex Civic Intelligence Prototype &copy; {new Date().getFullYear()} — College Project</p>
+        <p>CiviNex Civic Intelligence Platform &copy; {new Date().getFullYear()} — College Project</p>
       </footer>
     </div>
   );

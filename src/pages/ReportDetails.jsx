@@ -277,21 +277,54 @@ export default function ReportDetails() {
 
           {/* Right Sidebar: AI Diagnostic & Verification Action Panel */}
           <div className="space-y-6">
-            {/* AI Diagnostic Summary */}
+            {/* Dual Priority & AI Diagnostic Summary */}
             <div className="p-6 rounded-2xl glass-panel border border-cyan-500/30 space-y-4">
-              <div className="flex items-center gap-2 text-cyan-400">
-                <Sparkles className="w-5 h-5" />
-                <h3 className="text-sm font-bold text-white">AI Diagnostic Summary</h3>
+              <div className="flex items-center justify-between text-cyan-400">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5" />
+                  <h3 className="text-sm font-bold text-white">Priority &amp; AI Diagnostic</h3>
+                </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Priority Score</span>
-                <div className="text-3xl font-extrabold text-cyan-400">{report.priorityScore}/100</div>
+              {/* User Priority vs AI Priority Side-by-Side Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">User Priority</span>
+                  <div className={`text-base font-extrabold ${
+                    (report.userPriority || report.severity) === 'Critical' ? 'text-red-400' :
+                    (report.userPriority || report.severity) === 'High' ? 'text-orange-400' :
+                    (report.userPriority || report.severity) === 'Medium' ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    {report.userPriority || report.severity || 'Medium'}
+                  </div>
+                  <div className="text-[10px] text-slate-500">Self-Assessed</div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900/80 border border-cyan-500/30 space-y-1 text-center">
+                  <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">AI Priority Score</span>
+                  <div className="text-xl font-extrabold text-cyan-300">
+                    {report.aiPriorityScore || report.priorityScore}/100
+                  </div>
+                  <div className="text-[10px] text-cyan-400/80 font-bold uppercase">
+                    AI Severity: {report.aiSeverity || report.severity}
+                  </div>
+                </div>
               </div>
+
+              {/* AI Reason */}
+              {report.aiReason && (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1 text-xs">
+                  <div className="text-slate-400 font-semibold flex items-center justify-between">
+                    <span>AI Reason</span>
+                    <span className="text-[10px] text-indigo-400">Photo Vision Analysis</span>
+                  </div>
+                  <div className="text-slate-300 italic leading-relaxed">"{report.aiReason}"</div>
+                </div>
+              )}
 
               {/* Image Authenticity */}
               {report.imageAuthenticity && (
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-1 text-xs border-t border-slate-800 pt-3">
                   <div className="text-slate-400 font-semibold">Image Authenticity</div>
                   <div className={`flex items-center gap-2 font-bold text-sm ${
                     report.imageAuthenticity === 'Likely Real' ? 'text-emerald-400' :
@@ -300,24 +333,16 @@ export default function ReportDetails() {
                     {report.imageAuthenticity === 'Likely Real' ? '🟢' :
                      report.imageAuthenticity === 'Possibly AI-Generated' ? '🟠' : '🟡'}
                     {report.imageAuthenticity}
+                    {report.authenticityConfidence && (
+                      <span className="text-xs text-slate-400 font-normal">({report.authenticityConfidence}%)</span>
+                    )}
                   </div>
-                  {report.authenticityConfidence && (
-                    <div className="text-slate-400">{report.authenticityConfidence}% confidence</div>
-                  )}
                   {report.needsReview && (
-                    <div className="flex items-center gap-1 text-amber-400 text-xs font-semibold bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1.5">
+                    <div className="flex items-center gap-1 text-amber-400 text-xs font-semibold bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1.5 mt-1">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       ⚠️ Authority review recommended
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* AI Reason */}
-              {report.aiReason && (
-                <div className="space-y-1 text-xs">
-                  <div className="text-slate-400 font-semibold">AI Reason</div>
-                  <div className="text-slate-300 italic leading-relaxed">{report.aiReason}</div>
                 </div>
               )}
 
@@ -326,16 +351,20 @@ export default function ReportDetails() {
                   <span>Category:</span>
                   <span className="text-slate-200 font-semibold">{report.category}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Severity Hazard:</span>
-                  <span className="font-semibold" style={{ color: severityColor[report.severity] || '#94a3b8' }}>{report.severity}</span>
-                </div>
                 {report.detectedCategory && report.detectedCategory !== report.category && (
                   <div className="flex justify-between">
-                    <span>AI Detected:</span>
+                    <span>AI Detected Category:</span>
                     <span className="text-indigo-400 font-semibold">{report.detectedCategory}</span>
                   </div>
                 )}
+                <div className="flex justify-between">
+                  <span>User Priority:</span>
+                  <span className="font-semibold text-slate-200">{report.userPriority || report.severity}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>AI Severity:</span>
+                  <span className="font-semibold text-cyan-400">{report.aiSeverity || report.severity}</span>
+                </div>
                 {report.relatedReportCount > 0 && (
                   <div className="flex justify-between">
                     <span>Related Reports:</span>
