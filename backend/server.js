@@ -18,8 +18,8 @@ const CATEGORY_IMAGES = {
     after: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80'
   },
   'Electricity': {
-    before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
-    after: 'https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?auto=format&fit=crop&w=800&q=80'
+    before: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80'
   },
   'Streetlight': {
     before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
@@ -31,7 +31,15 @@ const CATEGORY_IMAGES = {
   },
   'Flooding': {
     before: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=800&q=80',
-    after: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+    after: 'https://images.unsplash.com/photo-1498084393753-b411b2d26b34?auto=format&fit=crop&w=800&q=80'
+  },
+  'Traffic': {
+    before: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1494522855154-9297ac14b55f?auto=format&fit=crop&w=800&q=80'
+  },
+  'Other': {
+    before: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80'
   }
 };
 
@@ -51,9 +59,9 @@ let reports = [
     reportedBy: 'demo-citizen@civinex.org',
     beforeImageUrl: CATEGORY_IMAGES['Road Damage'].before,
     imageUrl: CATEGORY_IMAGES['Road Damage'].before,
-    afterImageUrl: CATEGORY_IMAGES['Road Damage'].after,
-    completionDate: new Date(Date.now() - 3600000 * 1).toISOString(),
-    resolutionRemarks: 'Road repair asphalt crew dispatched. Pothole filled and sealed.'
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   },
   {
     id: 'rep-102',
@@ -69,9 +77,9 @@ let reports = [
     reportedBy: 'resident@civinex.org',
     beforeImageUrl: CATEGORY_IMAGES['Garbage'].before,
     imageUrl: CATEGORY_IMAGES['Garbage'].before,
-    afterImageUrl: CATEGORY_IMAGES['Garbage'].after,
-    completionDate: new Date(Date.now() - 3600000 * 2).toISOString(),
-    resolutionRemarks: 'Sanitation squad dispatched. Dumpster emptied and surrounding sidewalk sanitized.'
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   },
   {
     id: 'rep-103',
@@ -165,6 +173,25 @@ app.post('/api/reports', (req, res) => {
 
   reports.unshift(newReport);
   res.status(201).json({ success: true, report: newReport });
+});
+
+// Purge/Delete long-time resolved reports
+app.delete('/api/reports/resolved/purge', (req, res) => {
+  const initialCount = reports.length;
+  reports = reports.filter(r => r.status !== 'Resolved' && r.verificationStatus !== 'Verified Resolved');
+  const deletedCount = initialCount - reports.length;
+  res.json({ success: true, deletedCount, remainingCount: reports.length });
+});
+
+// Delete single report by ID
+app.delete('/api/reports/:id', (req, res) => {
+  const { id } = req.params;
+  const initialCount = reports.length;
+  reports = reports.filter(r => r.id !== id);
+  if (reports.length === initialCount) {
+    return res.status(404).json({ success: false, message: 'Report not found' });
+  }
+  res.json({ success: true, message: `Report ${id} deleted successfully` });
 });
 
 // Update report status & after verification evidence

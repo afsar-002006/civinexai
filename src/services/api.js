@@ -5,6 +5,18 @@ import { analyzePhotoWithAI } from './imageAnalysis';
 const API_BASE_URL = 'http://localhost:5000/api';
 const LOCAL_REPORTS_KEY = 'civinex_local_reports';
 
+export function isValidImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.length < 10) return false;
+  return (
+    trimmed.startsWith('data:image') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('blob:')
+  );
+}
+
 const CATEGORY_DEFAULT_IMAGES = {
   'Road Damage': {
     before: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80',
@@ -15,8 +27,8 @@ const CATEGORY_DEFAULT_IMAGES = {
     after: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80'
   },
   'Electricity': {
-    before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
-    after: 'https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?auto=format&fit=crop&w=800&q=80'
+    before: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=800&q=80'
   },
   'Streetlight': {
     before: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80',
@@ -28,7 +40,15 @@ const CATEGORY_DEFAULT_IMAGES = {
   },
   'Flooding': {
     before: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=800&q=80',
-    after: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+    after: 'https://images.unsplash.com/photo-1498084393753-b411b2d26b34?auto=format&fit=crop&w=800&q=80'
+  },
+  'Traffic': {
+    before: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1494522855154-9297ac14b55f?auto=format&fit=crop&w=800&q=80'
+  },
+  'Other': {
+    before: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?auto=format&fit=crop&w=800&q=80',
+    after: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80'
   }
 };
 
@@ -54,9 +74,9 @@ const defaultSeedReports = [
     reportedBy: 'citizen@civinex.org',
     beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].before,
     imageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].before,
-    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Road Damage'].after,
-    completionDate: new Date(Date.now() - 3600000 * 1).toISOString(),
-    resolutionRemarks: 'Asphalt paving crew dispatched. Pothole completely filled and leveled.'
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   },
   {
     id: 'rep-102',
@@ -79,9 +99,9 @@ const defaultSeedReports = [
     reportedBy: 'resident@civinex.org',
     beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].before,
     imageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].before,
-    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Garbage'].after,
-    completionDate: new Date(Date.now() - 3600000 * 2).toISOString(),
-    resolutionRemarks: 'Sanitation squad dispatched. Dumpster emptied and surrounding sidewalk disinfected.'
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   },
   {
     id: 'rep-103',
@@ -129,9 +149,9 @@ const defaultSeedReports = [
     reportedBy: 'shopowner@civinex.org',
     beforeImageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].before,
     imageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].before,
-    afterImageUrl: CATEGORY_DEFAULT_IMAGES['Water Leakage'].after,
-    completionDate: new Date(Date.now() - 3600000 * 1).toISOString(),
-    resolutionRemarks: 'Hydro squad replaced ruptured pipe section and tested water pressure.'
+    afterImageUrl: '',
+    completionDate: '',
+    resolutionRemarks: ''
   }
 ];
 
@@ -172,8 +192,9 @@ async function fetchWithTimeout(resource, options = {}) {
 function getStoredLocalReports() {
   const saved = localStorage.getItem(LOCAL_REPORTS_KEY);
   if (!saved) {
-    localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(defaultSeedReports));
-    return defaultSeedReports;
+    const initialSeeds = [...defaultSeedReports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(initialSeeds));
+    return initialSeeds;
   }
   try {
     const parsed = JSON.parse(saved);
@@ -187,9 +208,10 @@ function getStoredLocalReports() {
           aiPriorityScore: item.aiPriorityScore || item.priorityScore || seedMatch.aiPriorityScore,
           aiSeverity: item.aiSeverity || seedMatch.aiSeverity,
           aiReason: item.aiReason || seedMatch.aiReason,
-          beforeImageUrl: seedMatch.beforeImageUrl,
+          // Preserve user uploaded image if present; fallback to seed photo ONLY for seed items
+          beforeImageUrl: item.beforeImageUrl || item.imageUrl || seedMatch.beforeImageUrl,
           afterImageUrl: item.afterImageUrl || seedMatch.afterImageUrl,
-          imageUrl: seedMatch.imageUrl
+          imageUrl: item.imageUrl || item.beforeImageUrl || seedMatch.imageUrl
         };
       }
       if (item.id && item.id.startsWith('rep-') && !['rep-101', 'rep-102', 'rep-103', 'rep-104'].includes(item.id)) {
@@ -203,42 +225,56 @@ function getStoredLocalReports() {
         aiPriorityScore: item.aiPriorityScore || item.priorityScore || 50
       };
     });
-    localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(updated));
-    return updated;
+
+    // Always sort by createdAt descending (newest uploads first)
+    const sorted = updated.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(sorted));
+    return sorted;
   } catch (e) {
-    return defaultSeedReports;
+    return [...defaultSeedReports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 }
 
 function saveLocalReports(reports) {
-  localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(reports));
+  const sorted = [...reports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(sorted));
 }
 
 // Fetch all reports (Firestore first, with backend/local fallback)
 export async function fetchReports() {
+  let reportsList = [];
+
   try {
     const querySnapshot = await withTimeout(getDocs(collection(db, 'issues')), 300);
     const firestoreReports = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     if (firestoreReports && firestoreReports.length > 0) {
-      return firestoreReports;
+      reportsList = firestoreReports;
     }
   } catch (err) {
     // Quiet fallback
   }
 
-  try {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/reports`, { timeout: 300 });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.reports && data.reports.length > 0) {
-        saveLocalReports(data.reports);
-        return data.reports;
+  if (reportsList.length === 0) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/reports`, { timeout: 300 });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reports && data.reports.length > 0) {
+          saveLocalReports(data.reports);
+          reportsList = data.reports;
+        }
       }
+    } catch (err) {
+      // Quiet fallback
     }
-  } catch (err) {
-    // Quiet fallback
   }
-  return getStoredLocalReports();
+
+  if (reportsList.length === 0) {
+    reportsList = getStoredLocalReports();
+  }
+
+  // Always return reports sorted by newest createdAt timestamp first!
+  return [...reportsList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 // Subscribe to real-time reports updates (Firestore with local fallback)
@@ -281,8 +317,7 @@ export async function createReport(reportData) {
   const userPriority = reportData.userPriority || reportData.severity || 'Medium';
   const priorityScore = reportData.priorityScore ?? Math.min(100, Math.max(15, baseScore));
   const aiPriorityScore = reportData.aiPriorityScore ?? priorityScore;
-  const categoryImages = CATEGORY_DEFAULT_IMAGES[reportData.category] || CATEGORY_DEFAULT_IMAGES['Road Damage'];
-  const beforeImg = reportData.imageUrl || categoryImages.before;
+  const beforeImg = reportData.imageUrl && isValidImageUrl(reportData.imageUrl) ? reportData.imageUrl.trim() : (reportData.imageUrl || '');
 
   const newReport = {
     id: `rep-${Date.now()}`,
@@ -500,4 +535,56 @@ export async function fetchAnalyticsStats() {
       { name: 'Electricity', count: reports.filter(r => r.category === 'Electricity').length },
     ]
   };
+}
+
+// Delete single report by ID (Authority feature)
+export async function deleteReport(id) {
+  try {
+    await fetchWithTimeout(`${API_BASE_URL}/reports/${id}`, {
+      method: 'DELETE',
+      timeout: 300
+    });
+  } catch (err) {
+    // Quiet fallback
+  }
+
+  const reports = getStoredLocalReports();
+  const filtered = reports.filter(r => r.id !== id);
+  saveLocalReports(filtered);
+  return { success: true, id };
+}
+
+// Purge / Batch delete long-time solved reports & images (Authority storage cleanup)
+export async function deleteResolvedReports() {
+  try {
+    await fetchWithTimeout(`${API_BASE_URL}/reports/resolved/purge`, {
+      method: 'DELETE',
+      timeout: 300
+    });
+  } catch (err) {
+    // Quiet fallback
+  }
+
+  const reports = getStoredLocalReports();
+  const remaining = reports.filter(r => r.status !== 'Resolved' && r.verificationStatus !== 'Verified Resolved');
+  const deletedCount = reports.length - remaining.length;
+  saveLocalReports(remaining);
+  return { success: true, deletedCount, remainingCount: remaining.length };
+}
+
+// Purge duplicate test reports from local storage so user can upload fresh problems
+export async function purgeDuplicateAndTestReports() {
+  const reports = getStoredLocalReports();
+  const cleaned = reports.filter(r => {
+    if (['rep-101', 'rep-102', 'rep-103', 'rep-104'].includes(r.id)) {
+      return true;
+    }
+    if (r.beforeImageUrl && (r.beforeImageUrl.startsWith('data:image') || !r.beforeImageUrl.includes('unsplash'))) {
+      return true;
+    }
+    return false;
+  });
+
+  saveLocalReports(cleaned);
+  return { success: true, count: cleaned.length };
 }

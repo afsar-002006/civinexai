@@ -9,6 +9,7 @@ import UploadAfterEvidenceModal from '../components/UploadAfterEvidenceModal';
 import A4ReportStatement from '../components/A4ReportStatement';
 import { fetchReportById, fetchReports, updateReportStatus, updateReportEvidence, updateVerificationStatus } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useReport } from '../context/ReportContext';
 import {
   ShieldAlert, MapPin, Calendar, User, Sparkles, CheckCircle2,
   Clock, ArrowLeft, ShieldCheck, RefreshCw, Upload, AlertTriangle,
@@ -18,6 +19,7 @@ import {
 export default function ReportDetails() {
   const { id } = useParams();
   const { role } = useAuth();
+  const { updateActiveReport } = useReport();
   const [report, setReport] = useState(null);
   const [relatedReports, setRelatedReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,19 +31,20 @@ export default function ReportDetails() {
     setLoading(true);
     const data = await fetchReportById(id);
     setReport(data);
-
-    // Find related reports (those that have this report's id as relatedIssueId, or vice versa)
     if (data) {
+      updateActiveReport(data);
       const all = await fetchReports();
       const related = all.filter(r => r.id !== id && (
         r.relatedIssueId === id || data.relatedIssueId === r.id
       ));
       setRelatedReports(related);
     }
+    }
     setLoading(false);
   };
 
   useEffect(() => { loadReport(); }, [id]);
+
 
   const handleStatusChange = async (newStatus) => {
     setUpdating(true);

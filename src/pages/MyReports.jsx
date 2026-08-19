@@ -4,8 +4,8 @@ import DashboardLayout from '../layouts/DashboardLayout';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import VerificationBadge from '../components/VerificationBadge';
-import { fetchReports } from '../services/api';
-import { FileText, Search, Filter, PlusCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { fetchReports, purgeDuplicateAndTestReports, isValidImageUrl } from '../services/api';
+import { FileText, Search, Filter, PlusCircle, ArrowRight, ShieldCheck, Trash2 } from 'lucide-react';
 
 export default function MyReports() {
   const [reports, setReports] = useState([]);
@@ -15,15 +15,24 @@ export default function MyReports() {
   const [filterVerification, setFilterVerification] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const loadData = async () => {
+    setLoading(true);
+    const data = await fetchReports();
+    setReports(data || []);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const data = await fetchReports();
-      setReports(data || []);
-      setLoading(false);
-    }
     loadData();
   }, []);
+
+  const handlePurgeTestData = async () => {
+    if (window.confirm('Clear all old test data and duplicate reports? (Default seed reports will remain clean)')) {
+      setLoading(true);
+      await purgeDuplicateAndTestReports();
+      await loadData();
+    }
+  };
 
   const filteredReports = reports.filter(r => {
     const matchesCat = filterCategory === 'All' || r.category === filterCategory;
@@ -48,13 +57,24 @@ export default function MyReports() {
             </div>
           </div>
 
-          <Link
-            to="/report-problem"
-            className="px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 shrink-0"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>New Report</span>
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handlePurgeTestData}
+              className="px-3.5 py-2.5 text-xs font-semibold text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-xl transition-all flex items-center gap-1.5 shrink-0"
+              title="Clear old test reports & duplicate images"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>Clear Test Data</span>
+            </button>
+
+            <Link
+              to="/report-problem"
+              className="px-4 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>New Report</span>
+            </Link>
+          </div>
         </div>
 
         {/* Search & Filter Controls */}
@@ -131,6 +151,19 @@ export default function MyReports() {
                   </div>
 
                   <h3 className="text-base font-bold text-white line-clamp-1">{report.title}</h3>
+
+                  {isValidImageUrl(report.beforeImageUrl || report.imageUrl) ? (
+                    <div className="rounded-xl overflow-hidden h-36 border border-slate-800/80 relative bg-slate-900 shadow-md">
+                      <img 
+                        src={report.beforeImageUrl || report.imageUrl} 
+                        alt={report.title} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.parentElement.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  ) : null}
 
                   <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
                     {report.description || 'No description provided.'}

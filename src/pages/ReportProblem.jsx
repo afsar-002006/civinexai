@@ -5,7 +5,9 @@ import DuplicateAlert from '../components/DuplicateAlert';
 import { createReport, analyzePriority, fetchReports, updateRelatedReportCount, updatePriorityScore } from '../services/api';
 import { analyzePhotoWithAI, computeImageHash } from '../services/imageAnalysis';
 import { checkForDuplicates, calculatePriorityScore } from '../services/duplicateDetection';
+import { reverseGeocode } from '../services/locationService';
 import { useAuth } from '../context/AuthContext';
+import { useReport } from '../context/ReportContext';
 import {
   PlusCircle, AlertTriangle, MapPin, Camera, Sparkles,
   CheckCircle2, Loader2, ArrowRight, LocateFixed, Upload, X, Image as ImageIcon,
@@ -32,6 +34,7 @@ const FLOW = {
 
 export default function ReportProblem() {
   const { currentUser, userProfile } = useAuth();
+  const { updateActiveReport, clearActiveReport } = useReport();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -52,6 +55,7 @@ export default function ReportProblem() {
   const [duplicateResult, setDuplicateResult] = useState(null);
   const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'url'
   const [fileName, setFileName] = useState('');
+  const [fetchingGps, setFetchingGps] = useState(false);
   const [aiScore, setAiScore] = useState(null);
   const [aiRecommendation, setAiRecommendation] = useState('');
   const [analyzingAi, setAnalyzingAi] = useState(false);
@@ -127,7 +131,43 @@ export default function ReportProblem() {
     }
   };
 
-  // Live priority score (without photo)
+  const handleGetGps = () => {
+    setFetchingGps(true);
+    if (!navigator.geolocation) {
+      reverseGeocode(13.0381, 80.2456).then((addr) => {
+        setLatitude(13.0381);
+        setLongitude(80.2456);
+        setLocation(addr);
+        setFetchingGps(false);
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        const fullAddr = await reverseGeocode(lat, lng);
+        setLocation(fullAddr);
+        setFetchingGps(false);
+      },
+      async (err) => {
+        console.warn("Geolocation permission error or unavailable, using fallback:", err);
+        const fallbackLat = 13.0381;
+        const fallbackLng = 80.2456;
+        setLatitude(fallbackLat);
+        setLongitude(fallbackLng);
+        const fullAddr = await reverseGeocode(fallbackLat, fallbackLng);
+        setLocation(fullAddr);
+        setFetchingGps(false);
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
+  // Trigger live AI priority analysis when category, severity, or description changes
   useEffect(() => {
     if (photoAnalysis) return;
     let active = true;
@@ -152,7 +192,25 @@ export default function ReportProblem() {
     setDuplicateResult(null);
   };
 
-  // ── Handle File Select ──
+  // Sync active report details with AI Context
+  useEffect(() => {
+    if (title || location || description || imageUrl) {
+      updateActiveReport({
+        id: submittedReportId || null,
+        title: title || `${category} Issue`,
+        category,
+        severity,
+        location: location || 'Location Not Set',
+        latitude,
+        longitude,
+        description,
+        imageUrl,
+        priorityScore: aiScore || 75,
+        status: submittedReportId ? 'Pending' : 'Drafting',
+        isSubmitted: Boolean(submittedReportId)
+      });
+    }
+  }, [title, category, severity, location, latitude, longitude, description, imageUrl, aiScore, submittedReportId, updateActiveReport]);
   const handleFileSelect = (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -325,6 +383,10 @@ export default function ReportProblem() {
 
       setSubmittedReportId(report.id);
       setAiScore(finalPriority);
+      updateActiveReport({
+        ...report,
+        isSubmitted: true
+      });
       setFlow(FLOW.SUCCESS);
     } catch (err) {
       console.error('Failed to submit report', err);

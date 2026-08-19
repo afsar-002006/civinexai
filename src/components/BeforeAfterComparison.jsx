@@ -11,7 +11,7 @@ export default function BeforeAfterComparison({ report, onOpenUploadModal }) {
 
   if (!report) return null;
 
-  const beforeImg = report.beforeImageUrl || report.imageUrl || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80';
+  const beforeImg = report.beforeImageUrl || report.imageUrl || report.image || '';
   const afterImg = report.afterImageUrl;
   const hasAfterImage = Boolean(afterImg);
 
@@ -162,7 +162,15 @@ export default function BeforeAfterComparison({ report, onOpenUploadModal }) {
             </div>
 
             <div className="rounded-xl overflow-hidden h-52 border border-slate-800/80 relative">
-              <img src={beforeImg} alt="Before" className="w-full h-full object-cover" />
+              {beforeImg ? (
+                <img src={beforeImg} alt="Before" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center p-6 text-center space-y-2">
+                  <ImageIcon className="w-8 h-8 text-slate-600" />
+                  <p className="text-xs font-semibold text-slate-400">No Photo Attached</p>
+                  <p className="text-[10px] text-slate-500">Report registered with text description & GPS location.</p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 text-xs text-slate-300">
