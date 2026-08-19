@@ -39,7 +39,6 @@ export default function ReportDetails() {
       ));
       setRelatedReports(related);
     }
-    }
     setLoading(false);
   };
 

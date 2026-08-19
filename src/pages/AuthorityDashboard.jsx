@@ -280,7 +280,6 @@ export default function AuthorityDashboard() {
                         )}
                       </div>
                     </div>
-                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 shrink-0">
