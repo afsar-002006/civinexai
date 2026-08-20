@@ -108,25 +108,25 @@ export function hammingDistance(h1, h2) {
  * Analyses an image URL and returns AI-style authenticity + severity info.
  * This is a deterministic simulation with smart text & visual signal detection.
  */
-export async function analyzePhotoWithAI(imageUrl, fileName = '', title = '', description = '') {
+export async function analyzePhotoWithAI(imageUrl, fileName = '', title = '', description = '', selectedCategory = '') {
   // Fast simulated AI Vision analysis
   await new Promise(resolve => setTimeout(resolve, 50));
 
-  const textToScan = `${fileName} ${title} ${description} ${imageUrl}`.toLowerCase();
+  const textToScan = `${fileName} ${title} ${description} ${selectedCategory} ${imageUrl}`.toLowerCase();
 
   let detectedCategory = null;
 
   if (textToScan.includes('street light') || textToScan.includes('streetlight') || textToScan.includes('lamp') || textToScan.includes('dark light')) {
     detectedCategory = 'Streetlight';
-  } else if (textToScan.includes('electric') || textToScan.includes('wire') || textToScan.includes('power') || textToScan.includes('pole') || textToScan.includes('transformer') || textToScan.includes('voltage') || textToScan.includes('outage') || textToScan.includes('bulb') || textToScan.includes('current')) {
+  } else if (textToScan.includes('electric') || textToScan.includes('wire') || textToScan.includes('power') || textToScan.includes('pole') || textToScan.includes('transformer') || textToScan.includes('voltage') || textToScan.includes('outage') || textToScan.includes('bulb') || textToScan.includes('current') || textToScan.includes('electricity')) {
     detectedCategory = 'Electricity';
-  } else if (textToScan.includes('flood') || textToScan.includes('waterlog') || textToScan.includes('water logging') || textToScan.includes('rain')) {
+  } else if (textToScan.includes('flood') || textToScan.includes('waterlog') || textToScan.includes('water logging') || textToScan.includes('rain') || textToScan.includes('flooding')) {
     detectedCategory = 'Flooding';
-  } else if (textToScan.includes('leak') || textToScan.includes('pipe') || textToScan.includes('water') || textToScan.includes('sewage') || textToScan.includes('plumbing') || textToScan.includes('drain')) {
+  } else if (textToScan.includes('leak') || textToScan.includes('pipe') || textToScan.includes('water') || textToScan.includes('sewage') || textToScan.includes('plumbing') || textToScan.includes('drain') || textToScan.includes('water leakage')) {
     detectedCategory = 'Water Leakage';
   } else if (textToScan.includes('garbage') || textToScan.includes('trash') || textToScan.includes('waste') || textToScan.includes('dump') || textToScan.includes('litter') || textToScan.includes('bin') || textToScan.includes('debris')) {
     detectedCategory = 'Garbage';
-  } else if (textToScan.includes('pothole') || textToScan.includes('road') || textToScan.includes('asphalt') || textToScan.includes('crack') || textToScan.includes('highway') || textToScan.includes('lane') || textToScan.includes('tar')) {
+  } else if (textToScan.includes('pothole') || textToScan.includes('road') || textToScan.includes('asphalt') || textToScan.includes('crack') || textToScan.includes('highway') || textToScan.includes('lane') || textToScan.includes('tar') || textToScan.includes('road damage')) {
     detectedCategory = 'Road Damage';
   } else if (textToScan.includes('traffic') || textToScan.includes('jam') || textToScan.includes('signal') || textToScan.includes('congestion')) {
     detectedCategory = 'Traffic';
@@ -134,13 +134,17 @@ export async function analyzePhotoWithAI(imageUrl, fileName = '', title = '', de
 
   // Deterministic seed from URL so results are consistent per image
   let seed = 0;
-  for (let i = 0; i < imageUrl.length; i++) {
+  for (let i = 0; i < (imageUrl || '').length; i++) {
     seed += imageUrl.charCodeAt(i) * (i + 1);
   }
 
   if (!detectedCategory) {
-    const CATEGORIES = ['Electricity', 'Streetlight', 'Water Leakage', 'Garbage', 'Road Damage', 'Flooding', 'Traffic'];
-    detectedCategory = CATEGORIES[seed % CATEGORIES.length];
+    if (selectedCategory && selectedCategory !== 'Other') {
+      detectedCategory = selectedCategory;
+    } else {
+      const CATEGORIES = ['Road Damage', 'Garbage', 'Water Leakage', 'Streetlight', 'Electricity', 'Flooding', 'Traffic'];
+      detectedCategory = CATEGORIES[seed % CATEGORIES.length];
+    }
   }
 
   // ── Authenticity ──

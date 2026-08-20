@@ -238,16 +238,20 @@ export default function ReportProblem() {
     }
     setFileName(file.name);
     const fname = file.name.toLowerCase();
-    if (fname.includes('street light') || fname.includes('streetlight')) {
+    if (fname.includes('street light') || fname.includes('streetlight') || fname.includes('lamp')) {
       setCategory('Streetlight');
-    } else if (fname.includes('electric') || fname.includes('wire') || fname.includes('power') || fname.includes('pole')) {
+    } else if (fname.includes('electric') || fname.includes('wire') || fname.includes('power') || fname.includes('pole') || fname.includes('transformer')) {
       setCategory('Electricity');
-    } else if (fname.includes('flood') || fname.includes('rain')) {
+    } else if (fname.includes('flood') || fname.includes('rain') || fname.includes('waterlog')) {
       setCategory('Flooding');
-    } else if (fname.includes('water') || fname.includes('pipe') || fname.includes('leak')) {
+    } else if (fname.includes('water') || fname.includes('pipe') || fname.includes('leak') || fname.includes('sewage')) {
       setCategory('Water Leakage');
-    } else if (fname.includes('garbage') || fname.includes('trash') || fname.includes('waste')) {
+    } else if (fname.includes('garbage') || fname.includes('trash') || fname.includes('waste') || fname.includes('dump') || fname.includes('litter')) {
       setCategory('Garbage');
+    } else if (fname.includes('pothole') || fname.includes('road') || fname.includes('asphalt') || fname.includes('crack') || fname.includes('highway') || fname.includes('lane') || fname.includes('tar')) {
+      setCategory('Road Damage');
+    } else if (fname.includes('traffic') || fname.includes('jam') || fname.includes('signal')) {
+      setCategory('Traffic');
     }
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -278,12 +282,12 @@ export default function ReportProblem() {
     setFlow(FLOW.ANALYZING);
     try {
       const [analysis, hash] = await Promise.all([
-        analyzePhotoWithAI(imageUrl, fileName, title, description),
+        analyzePhotoWithAI(imageUrl, fileName, title, description, category),
         computeImageHash(imageUrl),
       ]);
       setPhotoAnalysis(analysis);
       setImageHash(hash);
-      if (analysis.detectedCategory) {
+      if (analysis.detectedCategory && category === 'Other') {
         setCategory(analysis.detectedCategory);
       }
       setSeverity(analysis.aiSeverity);
@@ -307,14 +311,11 @@ export default function ReportProblem() {
       setFlow(FLOW.ANALYZING);
       try {
         [analysis, hash] = await Promise.all([
-          analyzePhotoWithAI(imageUrl, fileName, title, description),
+          analyzePhotoWithAI(imageUrl, fileName, title, description, category),
           computeImageHash(imageUrl),
         ]);
         setPhotoAnalysis(analysis);
         setImageHash(hash);
-        if (analysis.detectedCategory) {
-          setCategory(analysis.detectedCategory);
-        }
         setSeverity(analysis.aiSeverity);
         setAiScore(analysis.priorityScore);
       } catch (err) {
