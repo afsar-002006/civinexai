@@ -170,7 +170,9 @@ export default function ReportProblem() {
   // Smart auto-select category from title or filename signals if category is still default
   useEffect(() => {
     const text = `${title} ${fileName} ${description}`.toLowerCase();
-    if (text.includes('street light') || text.includes('streetlight') || text.includes('lamp')) {
+    if (text.includes('pothole') || text.includes('road damage') || text.includes('road crack') || text.includes('asphalt') || text.includes('road')) {
+      setCategory('Road Damage');
+    } else if (text.includes('street light') || text.includes('streetlight') || text.includes('lamp')) {
       setCategory('Streetlight');
     } else if (text.includes('electric') || text.includes('wire') || text.includes('power') || text.includes('pole') || text.includes('transformer') || text.includes('voltage') || text.includes('outage') || text.includes('bulb')) {
       setCategory('Electricity');
@@ -180,8 +182,6 @@ export default function ReportProblem() {
       setCategory('Garbage');
     } else if (text.includes('flood') || text.includes('waterlog') || text.includes('water logging')) {
       setCategory('Flooding');
-    } else if (text.includes('pothole') || text.includes('road damage') || text.includes('road crack')) {
-      setCategory('Road Damage');
     }
   }, [title, fileName, description]);
 
