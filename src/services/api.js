@@ -358,37 +358,26 @@ export async function createReport(reportData) {
     relatedReportCount: reportData.relatedReportCount ?? 0,
   };
 
-  // Try Firestore with strict 300ms timeout
-  try {
-    await withTimeout(addDoc(collection(db, 'issues'), newReport), 300);
-  } catch (err) {
-    // Firestore timed out or unconfigured, proceed to backend / local store
-  }
-
-  // Try Backend API with strict 300ms timeout
-  try {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/reports`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newReport),
-      timeout: 300
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.report) {
-        const reports = getStoredLocalReports();
-        reports.unshift(data.report);
-        saveLocalReports(reports);
-        return data.report;
-      }
-    }
-  } catch (err) {
-    // Fallback to local storage
-  }
-
+  // Save locally immediately for instant response
   const reports = getStoredLocalReports();
   reports.unshift(newReport);
   saveLocalReports(reports);
+
+  // Background non-blocking sync to Firestore & Backend API
+  (async () => {
+    try {
+      await withTimeout(addDoc(collection(db, 'issues'), newReport), 150);
+    } catch (_) {}
+    try {
+      await fetchWithTimeout(`${API_BASE_URL}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReport),
+        timeout: 150
+      });
+    } catch (_) {}
+  })();
+
   return newReport;
 }
 

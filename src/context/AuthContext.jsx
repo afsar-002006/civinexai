@@ -19,42 +19,160 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null); // { name, role, email }
   const [loading, setLoading] = useState(true);
 
+  function getProfilesStore() {
+    const saved = localStorage.getItem('civinex_user_profiles_store');
+    let store = {
+      'citizen@civinex.org': { name: 'Afsar Ahmed', email: 'citizen@civinex.org', role: 'Citizen' },
+      'resident@civinex.org': { name: 'Afsar Ahmed', email: 'resident@civinex.org', role: 'Citizen' },
+      'parent@civinex.org': { name: 'Afsar Ahmed', email: 'parent@civinex.org', role: 'Citizen' },
+      'shopowner@civinex.org': { name: 'Afsar Ahmed', email: 'shopowner@civinex.org', role: 'Citizen' },
+      'officer@civinex.org': { name: 'Authority Officer', email: 'officer@civinex.org', role: 'Authority' },
+      'afsarafu760@gmail.com': { name: 'Afsar', email: 'afsarafu760@gmail.com', role: 'Citizen' },
+    };
+    if (saved) {
+      try {
+        store = { ...store, ...JSON.parse(saved) };
+      } catch (_) {}
+    }
+    return store;
+  }
+
+  function cleanNameFromEmail(emailStr, fallbackName) {
+    if (fallbackName && fallbackName.trim() && !fallbackName.includes('@')) {
+      return fallbackName.trim();
+    }
+    if (!emailStr) return 'Citizen';
+    const prefix = emailStr.split('@')[0];
+    const cleaned = prefix.replace(/[0-9_.-]+/g, ' ').trim();
+    if (!cleaned) return 'Citizen';
+    return cleaned.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  function getStoredProfile(emailStr, fallbackName = '') {
+    if (!emailStr) return null;
+    const lower = emailStr.toLowerCase().trim();
+    const store = getProfilesStore();
+
+    if (fallbackName && fallbackName.trim() && !fallbackName.includes('@')) {
+      const updated = {
+        name: fallbackName.trim(),
+        email: lower,
+        role: lower.includes('authority') || lower.includes('officer') ? 'Authority' : 'Citizen'
+      };
+      saveStoredProfile(updated);
+      return updated;
+    }
+
+    if (store[lower] && store[lower].name && !store[lower].name.includes('@')) {
+      return store[lower];
+    }
+
+    const clean = cleanNameFromEmail(lower, fallbackName);
+    const role = lower.includes('authority') || lower.includes('officer') ? 'Authority' : 'Citizen';
+    return { name: clean, email: lower, role };
+  }
+
+  function saveStoredProfile(profile) {
+    if (!profile || !profile.email) return;
+    const lower = profile.email.toLowerCase().trim();
+    const store = getProfilesStore();
+    const clean = profile.name && !profile.name.includes('@') ? profile.name.trim() : cleanNameFromEmail(lower);
+    const updated = {
+      name: clean,
+      email: lower,
+      role: profile.role || (lower.includes('authority') || lower.includes('officer') ? 'Authority' : 'Citizen')
+    };
+    store[lower] = updated;
+    localStorage.setItem('civinex_user_profiles_store', JSON.stringify(store));
+    localStorage.setItem('civinex_demo_profile', JSON.stringify(updated));
+    return updated;
+  }
+
+  function updateUserProfileName(newName) {
+    if (!newName || !newName.trim()) return;
+    const clean = newName.trim();
+    const email = currentUser?.email || userProfile?.email;
+    if (!email) return;
+    const lower = email.toLowerCase().trim();
+    const updated = {
+      name: clean,
+      email: lower,
+      role: userProfile?.role || 'Citizen'
+    };
+    saveStoredProfile(updated);
+    setUserProfile(updated);
+    if (currentUser) {
+      const updatedUser = { ...currentUser, displayName: clean };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('civinex_demo_user', JSON.stringify(updatedUser));
+    }
+  }
+
+  function getRegisteredEmails() {
+    const saved = localStorage.getItem('civinex_registered_emails');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (_) {}
+    }
+    return ['citizen@civinex.org', 'resident@civinex.org', 'parent@civinex.org', 'shopowner@civinex.org', 'officer@civinex.org', 'afsarafu760@gmail.com'];
+  }
+
+  function saveRegisteredEmail(email) {
+    if (!email) return;
+    const list = getRegisteredEmails();
+    const lower = email.toLowerCase().trim();
+    if (!list.includes(lower)) {
+      list.push(lower);
+      localStorage.setItem('civinex_registered_emails', JSON.stringify(list));
+    }
+  }
+
+  function isEmailRegistered(email) {
+    if (!email) return false;
+    const list = getRegisteredEmails();
+    return list.includes(email.toLowerCase().trim());
+  }
+
   // Register function
   async function register(email, password, name, role = 'Citizen') {
+    const cleanName = name && name.trim() ? name.trim() : cleanNameFromEmail(email);
+    const profileData = {
+      name: cleanName,
+      email: email.toLowerCase().trim(),
+      role,
+      createdAt: new Date().toISOString()
+    };
+    saveStoredProfile(profileData);
+
+    if (isEmailRegistered(email)) {
+      const err = new Error('This email address is already registered.');
+      err.code = 'auth/email-already-in-use';
+      throw err;
+    }
+    saveRegisteredEmail(email);
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Create user profile document in Firestore: users/{userId}
       const userRef = doc(db, 'users', user.uid);
-      const profileData = {
-        name,
-        email,
-        role,
-        createdAt: serverTimestamp()
-      };
-
       try {
         await setDoc(userRef, profileData);
-        setUserProfile(profileData);
       } catch (err) {
         console.warn("Firestore user creation warning:", err);
-        setUserProfile(profileData);
       }
 
+      setUserProfile(profileData);
       return user;
     } catch (err) {
       console.warn("Firebase Auth Error, checking fallback:", err);
-      // Fallback for demo prototype mode if API key is invalid/placeholder
       if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/invalid-api-key' || !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'your_api_key_here') {
-        const demoUser = { uid: 'demo-' + Date.now(), email, displayName: name };
-        const demoProfile = { name, email, role, createdAt: new Date().toISOString() };
+        const demoUser = { uid: 'demo-' + Date.now(), email: email.toLowerCase().trim(), displayName: cleanName };
         
         localStorage.setItem('civinex_demo_user', JSON.stringify(demoUser));
-        localStorage.setItem('civinex_demo_profile', JSON.stringify(demoProfile));
+        localStorage.setItem('civinex_demo_profile', JSON.stringify(profileData));
         
         setCurrentUser(demoUser);
-        setUserProfile(demoProfile);
+        setUserProfile(profileData);
         return demoUser;
       }
       throw err;
@@ -62,46 +180,44 @@ export function AuthProvider({ children }) {
   }
 
   // Login function
-  async function login(email, password) {
+  async function login(email, password, providedName = '') {
+    saveRegisteredEmail(email);
+    let profile = getStoredProfile(email, providedName);
+
+    if (providedName && providedName.trim() && !providedName.includes('@')) {
+      profile = saveStoredProfile({ name: providedName.trim(), email, role: profile?.role || 'Citizen' });
+    }
+
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Fetch user profile from Firestore
       try {
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
 
-        if (userSnap.exists()) {
-          setUserProfile(userSnap.data());
+        if (userSnap.exists() && userSnap.data().name) {
+          const fsProfile = { ...userSnap.data(), email: email.toLowerCase().trim() };
+          saveStoredProfile(fsProfile);
+          setUserProfile(fsProfile);
         } else {
-          const defaultProfile = { name: email.split('@')[0], email, role: 'Citizen' };
-          setUserProfile(defaultProfile);
+          setUserProfile(profile);
         }
       } catch (err) {
-        console.warn("Error fetching user profile from Firestore:", err);
-        setUserProfile({ name: email.split('@')[0], email, role: 'Citizen' });
+        setUserProfile(profile);
       }
 
       return user;
     } catch (err) {
       console.warn("Firebase Login Error, checking fallback:", err);
       if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/invalid-api-key' || !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'your_api_key_here') {
-        const savedProfile = localStorage.getItem('civinex_demo_profile');
-        let demoProfile = savedProfile ? JSON.parse(savedProfile) : { name: email.split('@')[0], email, role: 'Citizen' };
-        
-        // Infer authority if email contains authority or officer
-        if (email.toLowerCase().includes('authority') || email.toLowerCase().includes('officer')) {
-          demoProfile.role = 'Authority';
-        }
-
-        const demoUser = { uid: 'demo-user-id', email, displayName: demoProfile.name };
+        const demoUser = { uid: 'demo-user-id', email: email.toLowerCase().trim(), displayName: profile.name };
         
         localStorage.setItem('civinex_demo_user', JSON.stringify(demoUser));
-        localStorage.setItem('civinex_demo_profile', JSON.stringify(demoProfile));
+        localStorage.setItem('civinex_demo_profile', JSON.stringify(profile));
 
         setCurrentUser(demoUser);
-        setUserProfile(demoProfile);
+        setUserProfile(profile);
         return demoUser;
       }
       throw err;
@@ -125,21 +241,22 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Safety fallback timeout: prevent blank page if Firebase Auth hangs or delays on demo keys
     const timeout = setTimeout(() => {
       if (isMounted) {
         setLoading(false);
       }
     }, 800);
 
-    // Check local storage for demo mode persistence
     const savedUser = localStorage.getItem('civinex_demo_user');
     const savedProfile = localStorage.getItem('civinex_demo_profile');
     
     if (savedUser && savedProfile) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
-        setUserProfile(JSON.parse(savedProfile));
+        const u = JSON.parse(savedUser);
+        const p = JSON.parse(savedProfile);
+        const cleanP = getStoredProfile(u.email || p.email, u.displayName || p.name);
+        setCurrentUser({ ...u, displayName: cleanP.name });
+        setUserProfile(cleanP);
       } catch (e) {
         console.warn("Failed to parse demo user session", e);
       }
@@ -154,18 +271,8 @@ export function AuthProvider({ children }) {
         if (!isMounted) return;
         setCurrentUser(user);
         if (user) {
-          try {
-            const userRef = doc(db, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-              setUserProfile(userSnap.data());
-            } else {
-              setUserProfile({ name: user.displayName || user.email.split('@')[0], email: user.email, role: 'Citizen' });
-            }
-          } catch (err) {
-            console.warn("Error fetching user profile on auth state change:", err);
-            setUserProfile({ name: user.displayName || user.email.split('@')[0], email: user.email, role: 'Citizen' });
-          }
+          const profile = getStoredProfile(user.email, user.displayName);
+          setUserProfile(profile);
         } else {
           setUserProfile(null);
         }
@@ -196,6 +303,8 @@ export function AuthProvider({ children }) {
     register,
     login,
     logout,
+    isEmailRegistered,
+    updateUserProfileName,
     loading
   };
 

@@ -1,20 +1,30 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
-import { ShieldAlert, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { ShieldAlert, LogIn, AlertCircle, Loader2, CheckCircle2, UserPlus } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(location.state?.email || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailNotRegistered, setEmailNotRegistered] = useState(false);
 
-  const { login } = useAuth();
+  const { login, currentUser, userProfile, isEmailRegistered, logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.state?.email) {
+      setEmail(location.state.email);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setEmailNotRegistered(false);
+
     if (!email || !password) {
       setError('Please enter both email and password.');
       return;
@@ -23,13 +33,23 @@ export default function Login() {
     try {
       setError('');
       setLoading(true);
-      const user = await login(email, password);
-      // Determine redirection based on Firestore role or email heuristic
-      navigate('/citizen-dashboard');
+      await login(email, password, location.state?.name);
+      
+      const role = userProfile?.role || (email.toLowerCase().includes('authority') || email.toLowerCase().includes('officer') ? 'Authority' : 'Citizen');
+      if (role === 'Authority') {
+        navigate('/authority-dashboard');
+      } else {
+        navigate('/citizen-dashboard');
+      }
     } catch (err) {
       console.error("Login Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Invalid email or password. Please check your credentials.');
+        if (isEmailRegistered && !isEmailRegistered(email)) {
+          setEmailNotRegistered(true);
+          setError('');
+        } else {
+          setError('Invalid email or password. Please check your credentials.');
+        }
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
       } else {
@@ -54,7 +74,55 @@ export default function Login() {
             <p className="text-xs text-slate-400">Sign in to access your CiviNex workspace</p>
           </div>
 
-          {error && (
+          {currentUser && (
+            <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-semibold">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-cyan-400" />
+                <span>Currently Signed In</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                You are currently signed in as <strong className="text-white">{userProfile?.name && !userProfile.name.includes('@') ? userProfile.name : (currentUser.displayName || 'Afsar')}</strong>.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => navigate('/citizen-dashboard')}
+                  className="flex-1 py-2 px-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition-all"
+                >
+                  Go to Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="py-2 px-3 glass-panel border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg transition-all"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+
+          {emailNotRegistered && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5 shadow-lg">
+              <div className="flex items-center gap-2 font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>Account Not Found</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                No account found for this email. Would you like to create one now?
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/register', { state: { email } })}
+                className="w-full py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Register New Account</span>
+              </button>
+            </div>
+          )}
+
+          {error && !emailNotRegistered && (
             <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
@@ -68,7 +136,10 @@ export default function Login() {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailNotRegistered(false);
+                }}
                 placeholder="name@example.com"
                 className="w-full px-3.5 py-2.5 text-sm rounded-xl glass-input"
               />

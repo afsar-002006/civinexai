@@ -167,6 +167,24 @@ export default function ReportProblem() {
     );
   };
 
+  // Smart auto-select category from title or filename signals if category is still default
+  useEffect(() => {
+    const text = `${title} ${fileName} ${description}`.toLowerCase();
+    if (text.includes('street light') || text.includes('streetlight') || text.includes('lamp')) {
+      setCategory('Streetlight');
+    } else if (text.includes('electric') || text.includes('wire') || text.includes('power') || text.includes('pole') || text.includes('transformer') || text.includes('voltage') || text.includes('outage') || text.includes('bulb')) {
+      setCategory('Electricity');
+    } else if (text.includes('water leak') || text.includes('pipe leak') || text.includes('water leakage') || text.includes('pipe burst')) {
+      setCategory('Water Leakage');
+    } else if (text.includes('garbage') || text.includes('trash') || text.includes('waste') || text.includes('dump') || text.includes('litter') || text.includes('bin')) {
+      setCategory('Garbage');
+    } else if (text.includes('flood') || text.includes('waterlog') || text.includes('water logging')) {
+      setCategory('Flooding');
+    } else if (text.includes('pothole') || text.includes('road damage') || text.includes('road crack')) {
+      setCategory('Road Damage');
+    }
+  }, [title, fileName, description]);
+
   // Trigger live AI priority analysis when category, severity, or description changes
   useEffect(() => {
     if (photoAnalysis) return;
@@ -211,6 +229,7 @@ export default function ReportProblem() {
       });
     }
   }, [title, category, severity, location, latitude, longitude, description, imageUrl, aiScore, submittedReportId, updateActiveReport]);
+
   const handleFileSelect = (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -218,6 +237,18 @@ export default function ReportProblem() {
       return;
     }
     setFileName(file.name);
+    const fname = file.name.toLowerCase();
+    if (fname.includes('street light') || fname.includes('streetlight')) {
+      setCategory('Streetlight');
+    } else if (fname.includes('electric') || fname.includes('wire') || fname.includes('power') || fname.includes('pole')) {
+      setCategory('Electricity');
+    } else if (fname.includes('flood') || fname.includes('rain')) {
+      setCategory('Flooding');
+    } else if (fname.includes('water') || fname.includes('pipe') || fname.includes('leak')) {
+      setCategory('Water Leakage');
+    } else if (fname.includes('garbage') || fname.includes('trash') || fname.includes('waste')) {
+      setCategory('Garbage');
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
       handleImageUrlChange(reader.result);
@@ -247,12 +278,14 @@ export default function ReportProblem() {
     setFlow(FLOW.ANALYZING);
     try {
       const [analysis, hash] = await Promise.all([
-        analyzePhotoWithAI(imageUrl),
+        analyzePhotoWithAI(imageUrl, fileName, title, description),
         computeImageHash(imageUrl),
       ]);
       setPhotoAnalysis(analysis);
       setImageHash(hash);
-      setCategory(analysis.detectedCategory);
+      if (analysis.detectedCategory) {
+        setCategory(analysis.detectedCategory);
+      }
       setSeverity(analysis.aiSeverity);
       setAiScore(analysis.priorityScore);
       setAiRecommendation(analysis.priorityScore >= 75 ? 'Immediate Attention Recommended' : 'Standard Priority Evaluation');
@@ -274,12 +307,14 @@ export default function ReportProblem() {
       setFlow(FLOW.ANALYZING);
       try {
         [analysis, hash] = await Promise.all([
-          analyzePhotoWithAI(imageUrl),
+          analyzePhotoWithAI(imageUrl, fileName, title, description),
           computeImageHash(imageUrl),
         ]);
         setPhotoAnalysis(analysis);
         setImageHash(hash);
-        setCategory(analysis.detectedCategory);
+        if (analysis.detectedCategory) {
+          setCategory(analysis.detectedCategory);
+        }
         setSeverity(analysis.aiSeverity);
         setAiScore(analysis.priorityScore);
       } catch (err) {
@@ -346,7 +381,7 @@ export default function ReportProblem() {
         longitude,
         description,
         imageUrl: imageUrl || '',
-        reportedBy: userProfile?.name || currentUser?.email || 'Citizen',
+        reportedBy: (userProfile?.name && !userProfile.name.includes('@')) ? userProfile.name : (currentUser?.displayName || 'Citizen'),
         priorityScore: finalPriority,
 
         // AI analysis
@@ -376,8 +411,8 @@ export default function ReportProblem() {
             createdAt: related.createdAt,
             aiPriorityScore: related.priorityScore,
           });
-          await updateRelatedReportCount(relatedIssueId, newCount);
-          await updatePriorityScore(relatedIssueId, newPriority);
+          updateRelatedReportCount(relatedIssueId, newCount).catch(() => {});
+          updatePriorityScore(relatedIssueId, newPriority).catch(() => {});
         }
       }
 
@@ -489,6 +524,16 @@ export default function ReportProblem() {
                     >
                       {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
+                    {photoAnalysis?.detectedCategory && photoAnalysis.detectedCategory !== category && (
+                      <button
+                        type="button"
+                        onClick={() => setCategory(photoAnalysis.detectedCategory)}
+                        className="mt-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20 transition-all"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>AI Suggests: <strong>{photoAnalysis.detectedCategory}</strong> — Apply</span>
+                      </button>
+                    )}
                   </div>
 
                   <div>
@@ -496,19 +541,12 @@ export default function ReportProblem() {
                       <span>Location / Address *</span>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (navigator.geolocation) {
-                            navigator.geolocation.getCurrentPosition(pos => {
-                              setLatitude(pos.coords.latitude);
-                              setLongitude(pos.coords.longitude);
-                              setLocation(`GPS: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
-                            });
-                          }
-                        }}
-                        className="text-cyan-400 flex items-center gap-1 hover:text-cyan-300 transition-colors"
-                        disabled={isBusy}
+                        onClick={handleGetGps}
+                        className="text-cyan-400 flex items-center gap-1 hover:text-cyan-300 transition-colors disabled:opacity-50"
+                        disabled={isBusy || fetchingGps}
                       >
-                        <LocateFixed className="w-3 h-3" /> Get GPS
+                        {fetchingGps ? <Loader2 className="w-3 h-3 animate-spin text-cyan-400" /> : <LocateFixed className="w-3 h-3" />}
+                        <span>{fetchingGps ? 'Fetching Address...' : 'Get GPS'}</span>
                       </button>
                     </label>
                     <div className="relative">
@@ -533,21 +571,35 @@ export default function ReportProblem() {
                     <span className="text-[10px] text-cyan-400">Selected: <strong className="text-white">{severity}</strong></span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {SEVERITIES.map(sev => (
-                      <button
-                        type="button"
-                        key={sev.id}
-                        onClick={() => setSeverity(sev.id)}
-                        disabled={isBusy}
-                        className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
-                          severity === sev.id
-                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md ring-1 ring-cyan-400/30'
-                            : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800'
-                        }`}
-                      >
-                        {sev.label}
-                      </button>
-                    ))}
+                    {SEVERITIES.map(sev => {
+                      const isSelected = severity === sev.id;
+                      let activeStyle = 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-md ring-1 ring-cyan-400/30';
+                      if (sev.id === 'Low') {
+                        activeStyle = 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400/40 font-bold';
+                      } else if (sev.id === 'Medium') {
+                        activeStyle = 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400/40 font-bold';
+                      } else if (sev.id === 'High') {
+                        activeStyle = 'bg-orange-500/25 border-orange-400 text-orange-300 shadow-lg shadow-orange-500/20 ring-1 ring-orange-400/40 font-bold';
+                      } else if (sev.id === 'Critical') {
+                        activeStyle = 'bg-rose-500/30 border-rose-400 text-rose-300 shadow-xl shadow-rose-500/30 ring-1 ring-rose-400/50 font-extrabold animate-pulse';
+                      }
+
+                      return (
+                        <button
+                          type="button"
+                          key={sev.id}
+                          onClick={() => setSeverity(sev.id)}
+                          disabled={isBusy}
+                          className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                            isSelected
+                              ? activeStyle
+                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          {sev.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
-import { UserPlus, AlertCircle, Loader2, UserCheck, ShieldCheck } from 'lucide-react';
+import { UserPlus, AlertCircle, Loader2, UserCheck, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -10,13 +10,15 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('Citizen');
   const [error, setError] = useState('');
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { register } = useAuth();
+  const { register, isEmailRegistered } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setAlreadyRegistered(false);
     if (!name || !email || !password) {
       setError('Please fill in all required fields.');
       return;
@@ -24,6 +26,12 @@ export default function Register() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (isEmailRegistered && isEmailRegistered(email)) {
+      setAlreadyRegistered(true);
+      setError('');
       return;
     }
 
@@ -39,8 +47,9 @@ export default function Register() {
       }
     } catch (err) {
       console.error("Registration Error:", err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError('This email address is already registered.');
+      if (err.code === 'auth/email-already-in-use' || err.message?.includes('already registered')) {
+        setAlreadyRegistered(true);
+        setError('');
       } else if (err.code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
       } else if (err.code === 'auth/weak-password') {
@@ -67,7 +76,27 @@ export default function Register() {
             <p className="text-xs text-slate-400">Join CiviNex to report and resolve local issues</p>
           </div>
 
-          {error && (
+          {alreadyRegistered && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5 shadow-lg">
+              <div className="flex items-center gap-2 font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>Account Already Exists</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                An account for <strong className="text-white">{name.trim() || 'this user'}</strong> already exists. Please Sign In instead.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/login', { state: { email, name } })}
+                className="w-full py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
+              >
+                <span>Sign In with Existing Account</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {error && !alreadyRegistered && (
             <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>

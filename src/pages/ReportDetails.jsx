@@ -200,25 +200,25 @@ export default function ReportDetails() {
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs text-slate-400">
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <MapPin className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-semibold uppercase">LOCATION</div>
-                    <div className="text-slate-200 truncate">{report.location}</div>
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/90 min-w-0">
+                  <MapPin className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">LOCATION</div>
+                    <div className="text-slate-100 font-semibold text-xs leading-relaxed break-words" title={report.location}>{report.location}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <Calendar className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-semibold uppercase">LOGGED DATE</div>
-                    <div className="text-slate-200">{new Date(report.createdAt).toLocaleDateString()}</div>
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/90 min-w-0">
+                  <Calendar className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">LOGGED DATE</div>
+                    <div className="text-slate-100 font-semibold text-xs leading-relaxed whitespace-nowrap">{new Date(report.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <User className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-semibold uppercase">REPORTER</div>
-                    <div className="text-slate-200 truncate">{report.reportedBy}</div>
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/90 min-w-0">
+                  <User className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">REPORTER</div>
+                    <div className="text-slate-100 font-semibold text-xs leading-relaxed break-words" title={report.reportedBy}>{report.reportedBy}</div>
                   </div>
                 </div>
               </div>
@@ -230,22 +230,24 @@ export default function ReportDetails() {
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-purple-400" />
                   <h2 className="text-base font-bold text-white">Issue Cluster</h2>
-                  <span className="ml-auto text-xs bg-purple-500/10 border border-purple-500/30 text-purple-400 font-bold px-2 py-0.5 rounded-lg">
+                  <span className="ml-auto text-xs bg-purple-500/10 border border-purple-500/30 text-purple-400 font-bold px-2.5 py-0.5 rounded-lg">
                     {report.relatedReportCount || relatedReports.length} related
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 leading-relaxed">
                   Multiple citizens have independently reported a similar issue nearby. Individual reports are preserved.
                 </p>
                 {relatedReports.length > 0 && (
                   <div className="space-y-2">
                     {relatedReports.slice(0, 5).map(r => (
-                      <div key={r.id} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <Link to={`/report/${r.id}`} className="text-xs font-semibold text-white hover:text-cyan-400 truncate block">{r.title}</Link>
-                          <div className="text-[10px] text-slate-500">{r.location} · {r.status}</div>
+                      <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-900/70 border border-slate-800/80">
+                        <div className="space-y-1 flex-1 min-w-0 mr-3">
+                          <Link to={`/report/${r.id}`} className="text-xs font-bold text-white hover:text-cyan-400 truncate block">{r.title}</Link>
+                          <div className="text-[11px] text-slate-400 truncate">
+                            <span className="text-slate-300 font-medium">{r.location}</span> · <span className="text-cyan-400 font-semibold">{r.status}</span>
+                          </div>
                         </div>
-                        <span className="text-xs font-bold text-amber-400 ml-3 shrink-0">{r.priorityScore}/100</span>
+                        <span className="text-xs font-extrabold text-amber-400 shrink-0 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg">{r.priorityScore}/100</span>
                       </div>
                     ))}
                   </div>

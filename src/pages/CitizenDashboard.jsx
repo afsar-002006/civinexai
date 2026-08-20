@@ -6,12 +6,14 @@ import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import { fetchReports } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, FileText, Clock, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
+import { PlusCircle, FileText, Clock, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Edit3 } from 'lucide-react';
 
 export default function CitizenDashboard() {
-  const { userProfile } = useAuth();
+  const { userProfile, updateUserProfileName } = useAuth();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -23,6 +25,13 @@ export default function CitizenDashboard() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleSaveName = () => {
+    if (tempName.trim()) {
+      updateUserProfileName(tempName.trim());
+    }
+    setIsEditingName(false);
+  };
 
   const totalCount = reports.length;
   const pendingCount = reports.filter(r => r.status === 'Pending' || r.status === 'Under Review').length;
@@ -42,8 +51,35 @@ export default function CitizenDashboard() {
         {/* Welcome Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl glass-panel border border-slate-800">
           <div>
-            <h1 className="text-2xl font-bold text-white">
-              Welcome back, <span className="text-cyan-400">{userProfile?.name || 'Citizen'}</span> 👋
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
+              <span>Welcome back,</span>
+              {isEditingName ? (
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  onBlur={handleSaveName}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                  autoFocus
+                  className="px-2.5 py-0.5 text-xl font-bold bg-slate-900 border border-cyan-400 rounded-xl text-cyan-400 outline-none"
+                />
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-cyan-400">
+                  <span>{userProfile?.name || 'Afsar'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempName(userProfile?.name || 'Afsar');
+                      setIsEditingName(true);
+                    }}
+                    className="p-1 text-slate-400 hover:text-cyan-400 transition-colors"
+                    title="Edit Display Name"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              )}
+              <span>👋</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
               Track your reported civic issues and receive AI-driven status insights in real time.
